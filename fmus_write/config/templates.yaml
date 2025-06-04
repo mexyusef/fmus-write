@@ -1,0 +1,133 @@
+templates:
+  Blank Project:
+    description: An empty project with minimal structure.
+    components:
+    - title_page
+    - chapters
+    default_chapters: []
+  Three-Act Structure:
+    description: Classical three-act structure with setup, confrontation, and resolution.
+    components:
+    - title_page
+    - prologue
+    - acts
+    - epilogue
+    plot_points:
+    - name: Inciting Incident
+      position: 0.12
+      description: Event that sets the story in motion
+    - name: First Plot Point
+      position: 0.25
+      description: End of Act 1, protagonist commits to main conflict
+    - name: Midpoint
+      position: 0.5
+      description: Major twist or revelation that changes the direction
+    - name: Second Plot Point
+      position: 0.75
+      description: Final piece of the puzzle before climax
+    - name: Climax
+      position: 0.9
+      description: The final confrontation or resolution of the main conflict
+    act_structure:
+    - name: 'Act 1: Setup'
+      percentage: 0.25
+      description: Introduce characters, world, and initial conflict
+    - name: 'Act 2: Confrontation'
+      percentage: 0.5
+      description: Develop conflict, raise stakes, encounter obstacles
+    - name: 'Act 3: Resolution'
+      percentage: 0.25
+      description: Climax and resolution of the story
+  Hero's Journey:
+    description: Classic monomyth structure based on Joseph Campbell's Hero's Journey.
+    components:
+    - title_page
+    - chapters
+    plot_points:
+    - name: Ordinary World
+      position: 0.05
+      description: The hero's normal life before the adventure
+    - name: Call to Adventure
+      position: 0.1
+      description: The hero is presented with a challenge or quest
+    - name: Refusal of the Call
+      position: 0.15
+      description: The hero initially refuses the challenge
+    - name: Meeting the Mentor
+      position: 0.2
+      description: The hero gains guidance from a mentor figure
+    - name: Crossing the Threshold
+      position: 0.25
+      description: The hero leaves the ordinary world
+    - name: Tests, Allies, Enemies
+      position: 0.35
+      description: The hero faces tests, makes allies and enemies
+    - name: Approach to the Inmost Cave
+      position: 0.5
+      description: The hero approaches the central challenge
+    - name: Ordeal
+      position: 0.6
+      description: The hero faces a major challenge or crisis
+    - name: Reward
+      position: 0.7
+      description: The hero gains something from the ordeal
+    - name: The Road Back
+      position: 0.8
+      description: The hero begins the journey home
+    - name: Resurrection
+      position: 0.9
+      description: The hero faces a final test
+    - name: Return with the Elixir
+      position: 0.95
+      description: The hero returns transformed
+  Save the Cat:
+    description: Modern storytelling structure based on Blake Snyder's Save the Cat.
+    components:
+    - title_page
+    - chapters
+    plot_points:
+    - name: Opening Image
+      position: 0.01
+      description: Sets the tone and gives a snapshot of the main character
+    - name: Theme Stated
+      position: 0.05
+      description: Someone states the theme of the story
+    - name: Setup
+      position: 0.1
+      description: Introduce characters and their world
+    - name: Catalyst
+      position: 0.12
+      description: Something happens that changes the protagonist's world
+    - name: Debate
+      position: 0.2
+      description: The protagonist debates what to do
+    - name: Break into Two
+      position: 0.25
+      description: The protagonist makes a choice and enters Act 2
+    - name: B Story
+      position: 0.3
+      description: Introduction of a secondary story or character
+    - name: Fun and Games
+      position: 0.45
+      description: The "promise of the premise" plays out
+    - name: Midpoint
+      position: 0.5
+      description: Either an "up" or a "down" moment for the protagonist
+    - name: Bad Guys Close In
+      position: 0.65
+      description: Antagonistic forces tighten their grip
+    - name: All Is Lost
+      position: 0.75
+      description: The worst moment for the protagonist
+    - name: Dark Night of the Soul
+      position: 0.8
+      description: The protagonist's darkest moment
+    - name: Break into Three
+      position: 0.85
+      description: The protagonist finds the solution
+    - name: Finale
+      position: 0.95
+      description: The protagonist proves they have changed and solves the problem
+    - name: Final Image
+      position: 0.99
+      description: Opposite of the opening image, shows change

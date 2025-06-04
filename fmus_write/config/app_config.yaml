@@ -1,0 +1,21 @@
+llm:
+  provider: gemini
+  model: gemini-1.5-flash
+  temperature: 0.7
+  max_tokens: 2000
+interface:
+  theme: light
+  font_size: 12
+  autosave_interval: 5
+export:
+  default_format: markdown
+  available_formats:
+  - markdown
+  - html
+  - epub
+  - pdf
+  - docx
+files:
+  autosave_directory: C:\Users\usef\AppData\Roaming\WriterGUI\autosave
+  backup_count: 5
+  autosave_enabled: true

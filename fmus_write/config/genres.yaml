@@ -1,0 +1,127 @@
+genres:
+  Fantasy:
+    description: Stories that involve magic, mythical creatures, or supernatural elements.
+    common_elements:
+    - Magic systems
+    - Mythical creatures
+    - Quests
+    - Epic battles
+    keywords:
+    - magic
+    - quest
+    - adventure
+    - dragon
+    - sword
+    - wizard
+  Science Fiction:
+    description: Stories based on scientific or technological advances, often set
+      in the future or space.
+    common_elements:
+    - Advanced technology
+    - Space travel
+    - Dystopian societies
+    - Artificial intelligence
+    keywords:
+    - technology
+    - space
+    - future
+    - robot
+    - alien
+    - dystopia
+  Mystery:
+    description: Stories that revolve around solving a crime or puzzle.
+    common_elements:
+    - Detective protagonist
+    - Crime scene
+    - Clues
+    - Suspects
+    keywords:
+    - detective
+    - murder
+    - clue
+    - suspect
+    - investigation
+  Thriller:
+    description: Fast-paced, suspenseful stories often involving danger or high stakes.
+    common_elements:
+    - High stakes
+    - Danger
+    - Plot twists
+    - Ticking clock
+    keywords:
+    - suspense
+    - danger
+    - conspiracy
+    - chase
+    - assassin
+  Romance:
+    description: Stories focused on romantic relationships between characters.
+    common_elements:
+    - Love interests
+    - Relationship development
+    - Emotional conflicts
+    - Happy ending
+    keywords:
+    - love
+    - relationship
+    - passion
+    - heartbreak
+    - marriage
+  Historical Fiction:
+    description: Stories set in the past that blend historical facts with fictional
+      elements.
+    common_elements:
+    - Historical setting
+    - Period-accurate details
+    - Historical events
+    - Cultural context
+    keywords:
+    - history
+    - period
+    - war
+    - ancient
+    - medieval
+    - renaissance
+  Literary Fiction:
+    description: Character-driven stories with a focus on style, themes, and psychological
+      depth.
+    common_elements:
+    - Complex characters
+    - Internal conflicts
+    - Social commentary
+    - Symbolic elements
+    keywords:
+    - character
+    - literary
+    - psychological
+    - introspection
+    - philosophical
+  Horror:
+    description: Stories designed to frighten, scare, or disgust readers.
+    common_elements:
+    - Monsters
+    - Psychological terror
+    - Gore
+    - Suspense
+    keywords:
+    - fear
+    - terror
+    - monster
+    - supernatural
+    - nightmare
+    - death
+  Young Adult:
+    description: Stories aimed at teenage readers, often dealing with coming-of-age
+      themes.
+    common_elements:
+    - Teenage protagonist
+    - Coming-of-age
+    - Identity exploration
+    - Friendship
+    keywords:
+    - teen
+    - young adult
+    - coming of age
+    - school
+    - friendship
+    - identity

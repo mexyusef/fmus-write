@@ -1,0 +1,3 @@
+"""
+WriterGUI UI package.
+"""

@@ -1,0 +1,22 @@
+structures:
+  novel:
+    description: A long narrative work of fiction.
+    word_count_range:
+    - 40000
+    - 150000
+    default_chapters: 12
+    default_scenes_per_chapter: 3
+  novella:
+    description: A short novel or long short story.
+    word_count_range:
+    - 10000
+    - 40000
+    default_chapters: 6
+    default_scenes_per_chapter: 2
+  short_story:
+    description: A brief fictional narrative.
+    word_count_range:
+    - 1000
+    - 10000
+    default_chapters: 1
+    default_scenes_per_chapter: 1

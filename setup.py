@@ -1,0 +1,47 @@
+from setuptools import setup, find_packages
+
+setup(
+    name="writegui",
+    version="0.0.1",
+    packages=find_packages(),
+    install_requires=[
+        "PyQt6>=6.5.0",
+        "openai>=1.0.0",
+        "anthropic>=0.5.0",
+        "tqdm>=4.65.0",
+        "pyyaml>=6.0",
+        "markdown>=3.4.0",
+        "ebooklib>=0.17.1",
+        "jsonschema>=4.17.0",
+        "tenacity>=8.2.0",
+        "typer>=0.9.0",
+        "rich>=13.4.0",
+    ],
+    entry_points={
+        "console_scripts": [
+            "writegui=writegui.src.main:main",
+            "fmus-write=fmus_write:main",
+        ],
+    },
+    author="Yusef Ulum",
+    author_email="yusef314159@gmail.com",
+    description="AI-assisted content creation app for writing",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
+    url="https://github.com/mexyusef/fmus-write",
+    keywords="writing, AI, content generation, fiction, books",
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Education",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Topic :: Text Processing :: General",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+    ],
+    python_requires=">=3.8",
+)
