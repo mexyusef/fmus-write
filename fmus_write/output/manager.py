@@ -9,15 +9,26 @@ import json
 import markdown
 import tempfile
 import shutil
+from pathlib import Path
+
+from .formatter import MarkdownFormatter, TextFormatter
+from .formatters import EPUBFormatter, PDFFormatter, HTMLFormatter
 
 logger = logging.getLogger(__name__)
 
+# Check for optional dependencies
 try:
     import ebooklib
     from ebooklib import epub
     EPUB_AVAILABLE = True
 except ImportError:
     EPUB_AVAILABLE = False
+
+try:
+    from reportlab.platypus import SimpleDocTemplate
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
 
 
 class OutputManager:
@@ -31,13 +42,43 @@ class OutputManager:
             config: Configuration options
         """
         self.config = config or {}
+        self._initialize_formatters()
+        
+    def _initialize_formatters(self):
+        """Initialize the formatter objects."""
+        self.formatter_objects = {
+            "markdown": MarkdownFormatter(),
+            "text": TextFormatter(),
+        }
+        
+        # Add HTML formatter
+        self.formatter_objects["html"] = HTMLFormatter()
+        
+        # Add EPUB formatter if dependency is available
+        if EPUB_AVAILABLE:
+            self.formatter_objects["epub"] = EPUBFormatter()
+        else:
+            logger.warning("EPUB support not available. Install ebooklib to enable EPUB export.")
+            
+        # Add PDF formatter if dependency is available
+        if PDF_AVAILABLE:
+            self.formatter_objects["pdf"] = PDFFormatter()
+        else:
+            logger.warning("PDF support not available. Install reportlab to enable PDF export.")
+        
+        # Legacy formatters for backward compatibility
         self.formatters = {
             "markdown": self._format_markdown,
             "html": self._format_html,
             "text": self._format_text,
             "json": self._format_json,
-            "epub": self._format_epub
         }
+        
+        if EPUB_AVAILABLE:
+            self.formatters["epub"] = self._format_epub
+            
+        if PDF_AVAILABLE:
+            self.formatters["pdf"] = self._format_pdf
 
     def export(
         self,
@@ -52,7 +93,7 @@ class OutputManager:
         Args:
             data: Content data to export
             output_path: Path to save the output
-            format_type: Format type (markdown, html, text, json, epub)
+            format_type: Format type (markdown, html, text, json, epub, pdf)
             **kwargs: Additional format-specific options
 
         Returns:
@@ -62,6 +103,15 @@ class OutputManager:
             ValueError: If the format is not supported
             IOError: If the file cannot be written
         """
+        # Use new formatter objects if available
+        if format_type in self.formatter_objects:
+            try:
+                return self.formatter_objects[format_type].write(data, output_path)
+            except Exception as e:
+                logger.error(f"Error using {format_type} formatter: {e}")
+                logger.info("Falling back to legacy formatter")
+        
+        # Fall back to legacy formatters
         if format_type not in self.formatters:
             raise ValueError(f"Unsupported format: {format_type}")
 
@@ -313,32 +363,66 @@ class OutputManager:
 
         return content
 
+    def _format_pdf(self, data: Dict[str, Any], **kwargs) -> bytes:
+        """
+        Format data as PDF.
+
+        Args:
+            data: Content data
+            **kwargs: Additional options
+
+        Returns:
+            bytes: Formatted PDF content
+        """
+        if not PDF_AVAILABLE:
+            raise ImportError("PDF support requires reportlab to be installed")
+            
+        # Create a temporary file for the PDF
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            temp_path = tmp.name
+            
+        try:
+            # Use the PDF formatter to create the file
+            pdf_formatter = PDFFormatter()
+            pdf_formatter.write(data, temp_path)
+            
+            # Read the file back as bytes
+            with open(temp_path, "rb") as f:
+                pdf_content = f.read()
+                
+            return pdf_content
+        finally:
+            # Clean up the temporary file
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
     def configure(self, config: Dict[str, Any]) -> None:
         """
-        Update the output manager configuration.
+        Update configuration.
 
         Args:
             config: New configuration options
         """
         self.config.update(config)
-        logger.debug("Updated output manager configuration")
 
     def register_formatter(self, format_type: str, formatter_func) -> None:
         """
-        Register a custom formatter.
+        Register a custom formatter function.
 
         Args:
-            format_type: Format identifier
+            format_type: Format type identifier
             formatter_func: Formatter function
         """
         self.formatters[format_type] = formatter_func
-        logger.debug(f"Registered custom formatter for {format_type}")
+        logger.info(f"Registered custom formatter for {format_type}")
 
     def get_supported_formats(self) -> List[str]:
         """
-        Get a list of supported export formats.
+        Get list of supported export formats.
 
         Returns:
-            List[str]: Supported format types
+            List of format identifiers
         """
-        return list(self.formatters.keys())
+        # Combine both new and legacy formatters
+        all_formats = set(list(self.formatter_objects.keys()) + list(self.formatters.keys()))
+        return sorted(list(all_formats))

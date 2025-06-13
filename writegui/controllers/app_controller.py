@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List
 
 from fmus_write import BookProject
 from fmus_write.config import ConfigManager
+from writegui.utils.settings_manager import SettingsManager
 
 # Fix Unicode encoding for logger
 if sys.stdout.encoding != 'utf-8':
@@ -64,8 +65,11 @@ class AppController:
         self.config_manager = ConfigManager()
         app_config = self.config_manager.get_app_config()
 
-        # Initialize settings from app_config
-        self.settings: Dict[str, Any] = {
+        # Initialize settings manager
+        self.settings_manager = SettingsManager()
+        
+        # Initialize settings from app_config for backward compatibility
+        default_settings = {
             "llm_provider": app_config.get('llm', {}).get('provider', 'openai'),
             "model": app_config.get('llm', {}).get('model', 'gpt-4o'),
             "temperature": app_config.get('llm', {}).get('temperature', 0.7),
@@ -73,10 +77,15 @@ class AppController:
             "autosave_interval": app_config.get('interface', {}).get('autosave_interval', 5),
             "theme": app_config.get('interface', {}).get('theme', 'dark'),
         }
-        logger.debug(f"Initial settings: {self.settings}")
+        
+        # Update settings manager with default values if they don't exist
+        for key, value in default_settings.items():
+            if not self.settings_manager.has_setting(key):
+                self.settings_manager.set(key, value)
+        
+        logger.debug(f"Initial settings: {self.settings_manager.get_all()}")
 
-        # Load settings and recent projects
-        self._load_settings()
+        # Load recent projects
         self._load_recent_projects()
         logger.info("AppController initialized successfully")
 
@@ -99,9 +108,9 @@ class AppController:
 
             # Configure the project with any additional parameters
             # This includes LLM provider settings
-            llm_provider = kwargs.get('llm_provider', self.settings.get('llm_provider', 'gemini'))
-            model = kwargs.get('model', self.settings.get('model', ''))
-            temperature = kwargs.get('temperature', self.settings.get('temperature', 0.7))
+            llm_provider = kwargs.get('llm_provider', self.settings_manager.get('llm_provider', 'gemini'))
+            model = kwargs.get('model', self.settings_manager.get('model', ''))
+            temperature = kwargs.get('temperature', self.settings_manager.get('temperature', 0.7))
 
             print(f"Using llm_provider={llm_provider}, model={model}, temperature={temperature}")
 
@@ -249,7 +258,7 @@ class AppController:
 
         try:
             # Get the provider name from kwargs or settings
-            provider_name = kwargs.get('provider', self.settings.get('llm_provider', 'gemini')).lower()
+            provider_name = kwargs.get('provider', self.settings_manager.get('llm_provider', 'gemini')).lower()
 
             # Log the generation request - replace emoji with text equivalents
             logger.info(f"""Generating workflow "{workflow_type}" content with provider: {provider_name}""")
@@ -298,9 +307,9 @@ class AppController:
             logger.debug(f"Refinement prompt: {refinement_prompt}")
 
             # Get LLM parameters for the refinement
-            provider = kwargs.get("provider", self.settings.get("llm_provider", "openai"))
-            model = kwargs.get("model", self.settings.get("model", "gpt-4o"))
-            temperature = kwargs.get("temperature", self.settings.get("temperature", 0.7))
+            provider = kwargs.get("provider", self.settings_manager.get("llm_provider", "openai"))
+            model = kwargs.get("model", self.settings_manager.get("model", "gpt-4o"))
+            temperature = kwargs.get("temperature", self.settings_manager.get("temperature", 0.7))
 
             logger.debug(f"Using provider: {provider}, model: {model}, temperature: {temperature}")
 
@@ -360,14 +369,14 @@ class AppController:
 
     def get_settings(self) -> Dict[str, Any]:
         """Get the current settings."""
-        return self.settings
+        return self.settings_manager.get_all()
 
     def update_settings(self, settings: Dict[str, Any]) -> None:
         """Update the settings."""
-        self.settings.update(settings)
-        self._save_settings()
-
-        # Update app_config with relevant settings
+        for key, value in settings.items():
+            self.settings_manager.set(key, value)
+        
+        # Update app_config with relevant settings for backward compatibility
         app_config = self.config_manager.get_app_config()
         if 'llm_provider' in settings:
             app_config['llm']['provider'] = settings['llm_provider']
@@ -433,30 +442,13 @@ class AppController:
 
     def _load_settings(self) -> None:
         """Load settings from the configuration file."""
-        config_dir = self._get_config_dir()
-        settings_path = config_dir / "settings.json"
-
-        if settings_path.exists():
-            try:
-                with open(settings_path, "r") as f:
-                    loaded_settings = json.load(f)
-                    self.settings.update(loaded_settings)
-            except Exception as e:
-                print(f"Error loading settings: {e}")
+        # Settings are now loaded by the SettingsManager
+        pass
 
     def _save_settings(self) -> None:
         """Save the current settings to the configuration file."""
-        config_dir = self._get_config_dir()
-        settings_path = config_dir / "settings.json"
-
-        try:
-            # Ensure the directory exists
-            config_dir.mkdir(parents=True, exist_ok=True)
-
-            with open(settings_path, "w") as f:
-                json.dump(self.settings, f, indent=2)
-        except Exception as e:
-            print(f"Error saving settings: {e}")
+        # Settings are now saved by the SettingsManager
+        pass
 
     def _load_recent_projects(self) -> None:
         """Load the recent projects list from the configuration file."""
@@ -486,13 +478,7 @@ class AppController:
 
     def _get_config_dir(self) -> Path:
         """Get the configuration directory for the application."""
-        # Use the system's standard config location
-        if os.name == "nt":  # Windows
-            config_dir = Path(os.environ.get("APPDATA", "")) / "WriterGUI"
-        else:  # macOS, Linux, etc.
-            config_dir = Path.home() / ".config" / "WriterGUI"
-
-        return config_dir
+        return self.settings_manager.get_config_dir()
 
     def _add_recent_project(self, project_name: str, project_path: str = "") -> None:
         """

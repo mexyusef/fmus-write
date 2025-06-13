@@ -86,6 +86,7 @@ def main():
         from writegui.controllers.app_controller import AppController
         from writegui.ui.main_window import MainWindow
         from fmus_write.llm.providers.provider_map import PROVIDER_MAP
+        from writegui.utils.stylesheet_manager import StylesheetManager
 
         logger.info("Creating application")
         # Create the application
@@ -93,9 +94,9 @@ def main():
         app.setApplicationName("WriterGUI")
         app.setOrganizationName("FMUS")
 
-        # Set the application style
-        app.setStyle("Fusion")
-        logger.info("Set application style to Fusion")
+        # Apply the light green theme
+        StylesheetManager.apply_theme()
+        logger.info("Applied light green theme")
 
         # Check available LLM providers from fmus_write package
         logger.info(f"Available LLM providers: {list(PROVIDER_MAP.keys())}")
@@ -104,9 +105,18 @@ def main():
         # Create the main controller
         controller = AppController()
 
-        from .default_settings import default_settings
+        # Configure default settings
+        default_settings = {
+            "llm_provider": "gemini",  # Using gemini as documented in HOW-TO-USE.md
+            "model": "gemini-1.5-flash",
+            "temperature": 0.7
+        }
 
-        controller.update_settings(default_settings)
+        # Apply default settings
+        for key, value in default_settings.items():
+            if not controller.settings_manager.has_setting(key):
+                controller.settings_manager.set(key, value)
+                
         logger.info(f"Configured default settings: {default_settings}")
 
         logger.info("Creating main window")

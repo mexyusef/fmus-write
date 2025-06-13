@@ -216,20 +216,78 @@ class BookProject:
 
     def export(self, output_path: str, format: str = "markdown"):
         """
-        Export generated content to a file.
+        Export the generated content to a file.
 
         Args:
-            output_path: Path to save the output
-            format: Output format (markdown, html, text, json, epub)
+            output_path: Path to save the exported file
+            format: Format to export (markdown, text, html, epub, pdf)
 
-        Raises:
-            ValueError: If no content has been generated
+        Returns:
+            Path to the exported file
         """
-        if not self.generated_content:
-            raise ValueError("No content has been generated. Call generate() first.")
+        self.logger.info(f"Exporting content in {format} format to {output_path}")
 
-        return self.output_manager.export(
-            self.generated_content,
-            output_path=output_path,
-            format_type=format
-        )
+        # Prepare export data
+        export_data = {
+            "title": self.title,
+            "author": self.author,
+            "genre": self.genre,
+            **self.settings
+        }
+
+        # Add generated content
+        if self.generated_content:
+            export_data.update(self.generated_content)
+
+        # Ensure we have the final chapters
+        if "final_chapters" not in export_data and "chapters" in export_data:
+            export_data["final_chapters"] = export_data["chapters"]
+
+        # Export using the output manager
+        try:
+            result_path = self.output_manager.export(
+                export_data,
+                output_path,
+                format_type=format
+            )
+            self.logger.info(f"Content exported successfully to {result_path}")
+            return result_path
+        except Exception as e:
+            self.logger.error(f"Failed to export content: {e}")
+            raise
+
+    def export_epub(self, output_path: str):
+        """
+        Export the generated content to an EPUB file.
+
+        Args:
+            output_path: Path to save the exported file
+
+        Returns:
+            Path to the exported file
+        """
+        return self.export(output_path, format="epub")
+
+    def export_pdf(self, output_path: str):
+        """
+        Export the generated content to a PDF file.
+
+        Args:
+            output_path: Path to save the exported file
+
+        Returns:
+            Path to the exported file
+        """
+        return self.export(output_path, format="pdf")
+
+    def export_html(self, output_path: str):
+        """
+        Export the generated content to an HTML file.
+
+        Args:
+            output_path: Path to save the exported file
+
+        Returns:
+            Path to the exported file
+        """
+        return self.export(output_path, format="html")

@@ -14,14 +14,22 @@ class ThemeManager:
         # Define theme color palettes
         self.themes = {
             "dark": self._create_dark_theme(),
-            "light": self._create_light_theme()
+            "light": self._create_light_theme(),
+            "sepia": self._create_sepia_theme(),
+            "blue": self._create_blue_theme()
         }
 
         # Define style sheets for different themes
         self.style_sheets = {
             "dark": self._create_dark_style_sheet(),
-            "light": self._create_light_style_sheet()
+            "light": self._create_light_style_sheet(),
+            "sepia": self._create_sepia_style_sheet(),
+            "blue": self._create_blue_style_sheet()
         }
+
+    def get_available_themes(self):
+        """Return a list of available theme names."""
+        return list(self.themes.keys())
 
     def apply_theme(self, widget: QWidget, theme_name: str = "dark"):
         """Apply a theme to the widget and its application."""
@@ -774,5 +782,347 @@ class ThemeManager:
         QProgressBar::chunk {
             background-color: #009688;
             width: 20px;
+        }
+        """
+
+    def _create_sepia_theme(self) -> QPalette:
+        """Create a sepia theme palette for a warm, book-like appearance."""
+        palette = QPalette()
+
+        # Base colors - warm sepia tones
+        palette.setColor(QPalette.ColorRole.Window, QColor(249, 241, 228))  # Light sepia
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(91, 60, 17))  # Dark brown
+        palette.setColor(QPalette.ColorRole.Base, QColor(245, 235, 224))  # Lighter sepia
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(237, 226, 211))  # Alternate sepia
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(245, 235, 224))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(91, 60, 17))
+
+        # Text colors
+        palette.setColor(QPalette.ColorRole.Text, QColor(91, 60, 17))  # Dark brown
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(91, 60, 17))
+
+        # Button colors
+        palette.setColor(QPalette.ColorRole.Button, QColor(193, 125, 17))  # Amber
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 255, 255))
+
+        # Link colors
+        palette.setColor(QPalette.ColorRole.Link, QColor(153, 92, 0))  # Darker amber
+        palette.setColor(QPalette.ColorRole.LinkVisited, QColor(128, 70, 27))  # Rusty brown
+
+        # Highlight colors
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(193, 125, 17))  # Amber
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+
+        # Disabled colors
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(180, 160, 142))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(180, 160, 142))
+
+        return palette
+
+    def _create_blue_theme(self) -> QPalette:
+        """Create a blue theme palette for a cool, professional appearance."""
+        palette = QPalette()
+
+        # Base colors - cool blue tones
+        palette.setColor(QPalette.ColorRole.Window, QColor(235, 245, 251))  # Light blue-gray
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(30, 55, 90))  # Dark blue
+        palette.setColor(QPalette.ColorRole.Base, QColor(245, 250, 253))  # Very light blue
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(225, 238, 250))  # Alternate light blue
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(245, 250, 253))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(30, 55, 90))
+
+        # Text colors
+        palette.setColor(QPalette.ColorRole.Text, QColor(30, 55, 90))  # Dark blue
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(30, 55, 90))
+
+        # Button colors
+        palette.setColor(QPalette.ColorRole.Button, QColor(41, 121, 255))  # Bright blue
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 255, 255))
+
+        # Link colors
+        palette.setColor(QPalette.ColorRole.Link, QColor(0, 102, 204))  # Medium blue
+        palette.setColor(QPalette.ColorRole.LinkVisited, QColor(64, 86, 161))  # Purple-blue
+
+        # Highlight colors
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(41, 121, 255))  # Bright blue
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+
+        # Disabled colors
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(160, 180, 200))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(160, 180, 200))
+
+        return palette
+
+    def _create_sepia_style_sheet(self) -> str:
+        """Create a sepia theme style sheet."""
+        return """
+        QMainWindow {
+            background-color: #f9f1e4;
+        }
+
+        QTabWidget {
+            background-color: #f5ebe0;
+        }
+
+        QTabWidget::pane {
+            border: 1px solid #d8c3a5;
+            background-color: #f5ebe0;
+        }
+
+        QTabBar::tab {
+            background-color: #ede2d3;
+            color: #5b3c11;
+            padding: 8px 15px;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+        }
+
+        QTabBar::tab:selected {
+            background-color: #c17d11;
+            color: #ffffff;
+        }
+
+        QTabBar::tab:hover:!selected {
+            background-color: #e6d0b1;
+        }
+
+        QMenuBar {
+            background-color: #f9f1e4;
+            color: #5b3c11;
+        }
+
+        QMenuBar::item {
+            background-color: transparent;
+            padding: 4px 10px;
+        }
+
+        QMenuBar::item:selected {
+            background-color: #c17d11;
+            color: #ffffff;
+        }
+
+        QMenu {
+            background-color: #f5ebe0;
+            color: #5b3c11;
+            border: 1px solid #d8c3a5;
+        }
+
+        QMenu::item {
+            padding: 5px 25px 5px 20px;
+        }
+
+        QMenu::item:selected {
+            background-color: #c17d11;
+            color: #ffffff;
+        }
+
+        QToolBar {
+            background-color: #f5ebe0;
+            border: none;
+            spacing: 3px;
+        }
+
+        QToolButton {
+            background-color: transparent;
+            color: #5b3c11;
+            padding: 5px;
+            border-radius: 3px;
+        }
+
+        QToolButton:hover {
+            background-color: #e6d0b1;
+        }
+
+        QToolButton:pressed {
+            background-color: #c17d11;
+            color: #ffffff;
+        }
+
+        QStatusBar {
+            background-color: #ede2d3;
+            color: #5b3c11;
+        }
+
+        QTextEdit, QPlainTextEdit {
+            background-color: #f5ebe0;
+            color: #5b3c11;
+            border: 1px solid #d8c3a5;
+            selection-background-color: #c17d11;
+            selection-color: #ffffff;
+        }
+
+        QPushButton {
+            background-color: #c17d11;
+            color: #ffffff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 3px;
+        }
+
+        QPushButton:hover {
+            background-color: #d68c13;
+        }
+
+        QPushButton:pressed {
+            background-color: #a66b0f;
+        }
+
+        QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+            background-color: #f5ebe0;
+            color: #5b3c11;
+            border: 1px solid #d8c3a5;
+            padding: 4px;
+            border-radius: 3px;
+        }
+
+        QComboBox::drop-down {
+            border: none;
+            width: 20px;
+        }
+
+        QCheckBox {
+            color: #5b3c11;
+        }
+
+        QCheckBox::indicator {
+            width: 15px;
+            height: 15px;
+        }
+        """
+
+    def _create_blue_style_sheet(self) -> str:
+        """Create a blue theme style sheet."""
+        return """
+        QMainWindow {
+            background-color: #ebf5fb;
+        }
+
+        QTabWidget {
+            background-color: #f5fafd;
+        }
+
+        QTabWidget::pane {
+            border: 1px solid #c5d9e8;
+            background-color: #f5fafd;
+        }
+
+        QTabBar::tab {
+            background-color: #e1eefa;
+            color: #1e375a;
+            padding: 8px 15px;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+        }
+
+        QTabBar::tab:selected {
+            background-color: #2979ff;
+            color: #ffffff;
+        }
+
+        QTabBar::tab:hover:!selected {
+            background-color: #d0e5f5;
+        }
+
+        QMenuBar {
+            background-color: #ebf5fb;
+            color: #1e375a;
+        }
+
+        QMenuBar::item {
+            background-color: transparent;
+            padding: 4px 10px;
+        }
+
+        QMenuBar::item:selected {
+            background-color: #2979ff;
+            color: #ffffff;
+        }
+
+        QMenu {
+            background-color: #f5fafd;
+            color: #1e375a;
+            border: 1px solid #c5d9e8;
+        }
+
+        QMenu::item {
+            padding: 5px 25px 5px 20px;
+        }
+
+        QMenu::item:selected {
+            background-color: #2979ff;
+            color: #ffffff;
+        }
+
+        QToolBar {
+            background-color: #f5fafd;
+            border: none;
+            spacing: 3px;
+        }
+
+        QToolButton {
+            background-color: transparent;
+            color: #1e375a;
+            padding: 5px;
+            border-radius: 3px;
+        }
+
+        QToolButton:hover {
+            background-color: #d0e5f5;
+        }
+
+        QToolButton:pressed {
+            background-color: #2979ff;
+            color: #ffffff;
+        }
+
+        QStatusBar {
+            background-color: #e1eefa;
+            color: #1e375a;
+        }
+
+        QTextEdit, QPlainTextEdit {
+            background-color: #f5fafd;
+            color: #1e375a;
+            border: 1px solid #c5d9e8;
+            selection-background-color: #2979ff;
+            selection-color: #ffffff;
+        }
+
+        QPushButton {
+            background-color: #2979ff;
+            color: #ffffff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 3px;
+        }
+
+        QPushButton:hover {
+            background-color: #448aff;
+        }
+
+        QPushButton:pressed {
+            background-color: #2962ff;
+        }
+
+        QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+            background-color: #f5fafd;
+            color: #1e375a;
+            border: 1px solid #c5d9e8;
+            padding: 4px;
+            border-radius: 3px;
+        }
+
+        QComboBox::drop-down {
+            border: none;
+            width: 20px;
+        }
+
+        QCheckBox {
+            color: #1e375a;
+        }
+
+        QCheckBox::indicator {
+            width: 15px;
+            height: 15px;
         }
         """

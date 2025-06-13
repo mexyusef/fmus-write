@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QPushButton, QTextEdit,
     QProgressBar
 )
-from PyQt6.QtCore import Qt, QSize, QSettings, QPoint, QRect
+from PyQt6.QtCore import Qt, QSize, QSettings, QPoint, QRect, QTimer, QByteArray
 from PyQt6.QtGui import QAction, QKeySequence, QPalette, QColor
 
 from writegui.controllers.app_controller import AppController
@@ -17,7 +17,11 @@ from writegui.ui.editor_tab import EditorTabWidget
 from writegui.ui.properties_panel import PropertiesPanel
 from writegui.dialogs.new_project_dialog import NewProjectDialog
 from writegui.dialogs.refine_content_dialog import RefineContentDialog
+from writegui.utils.stylesheet_manager import StylesheetManager
 from writegui.utils.theme_manager import ThemeManager
+from writegui.utils.settings_manager import SettingsManager
+from writegui.ui.progress_widget import ProgressWidget
+from writegui.resources.icons import IconManager
 
 
 class MainWindow(QMainWindow):
@@ -32,9 +36,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("WriterGUI")
         self.setMinimumSize(1024, 768)
 
-        # Setup theme
+        # Setup theme and settings
         self.theme_manager = ThemeManager()
-        self.theme_manager.apply_theme(self, controller.settings.get("theme", "dark"))
+        self.settings_manager = controller.settings_manager
+        
+        # Apply the light green theme from StylesheetManager
+        StylesheetManager.apply_theme()
 
         # Setup UI components
         self._create_menus()
@@ -50,180 +57,214 @@ class MainWindow(QMainWindow):
         self._restore_window_state()
 
     def _create_menus(self):
-        """Create the menu bar and menus."""
-        menubar = self.menuBar()
-
+        """Create the application menus."""
         # File menu
-        file_menu = menubar.addMenu("&File")
+        file_menu = self.menuBar().addMenu("&File")
 
-        new_action = QAction("&New Project...", self)
+        # New project action
+        new_action = QAction(IconManager.new_icon(), "&New", self)
         new_action.setShortcut(QKeySequence("Ctrl+N"))
         new_action.triggered.connect(self._on_new_project)
+        new_action.setToolTip("Create a new project")
         file_menu.addAction(new_action)
 
-        open_action = QAction("&Open Project...", self)
+        # Open project action
+        open_action = QAction(IconManager.open_icon(), "&Open...", self)
         open_action.setShortcut(QKeySequence("Ctrl+O"))
         open_action.triggered.connect(self._on_open_project)
+        open_action.setToolTip("Open an existing project")
         file_menu.addAction(open_action)
 
         # Recent projects submenu
-        self.recent_menu = QMenu("Recent Projects", self)
-        file_menu.addMenu(self.recent_menu)
+        self.recent_menu = file_menu.addMenu("Open &Recent")
         self._update_recent_projects_menu()
+
+        # Clear recent action
+        clear_recent_action = QAction("&Clear Recent", self)
+        clear_recent_action.triggered.connect(self._on_clear_recent)
+        self.recent_menu.addAction(clear_recent_action)
 
         file_menu.addSeparator()
 
-        save_action = QAction("&Save Project", self)
+        # Save project action
+        save_action = QAction(IconManager.save_icon(), "&Save", self)
         save_action.setShortcut(QKeySequence("Ctrl+S"))
         save_action.triggered.connect(self._on_save_project)
+        save_action.setToolTip("Save the current project")
         file_menu.addAction(save_action)
 
-        save_as_action = QAction("Save Project &As...", self)
+        # Save as action
+        save_as_action = QAction("Save &As...", self)
         save_as_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
         save_as_action.triggered.connect(self._on_save_project_as)
+        save_as_action.setToolTip("Save the project with a new name")
         file_menu.addAction(save_as_action)
 
         file_menu.addSeparator()
 
-        export_action = QAction("&Export...", self)
+        # Export action
+        export_action = QAction(IconManager.export_icon(), "&Export...", self)
         export_action.setShortcut(QKeySequence("Ctrl+E"))
         export_action.triggered.connect(self._on_export)
+        export_action.setToolTip("Export the project to various formats")
         file_menu.addAction(export_action)
 
         file_menu.addSeparator()
 
+        # Exit action
         exit_action = QAction("E&xit", self)
-        exit_action.setShortcut(QKeySequence("Ctrl+Q"))
+        exit_action.setShortcut(QKeySequence("Alt+F4"))
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
         # Edit menu
-        edit_menu = menubar.addMenu("&Edit")
+        edit_menu = self.menuBar().addMenu("&Edit")
 
+        # Undo action
         undo_action = QAction("&Undo", self)
         undo_action.setShortcut(QKeySequence("Ctrl+Z"))
         edit_menu.addAction(undo_action)
 
+        # Redo action
         redo_action = QAction("&Redo", self)
         redo_action.setShortcut(QKeySequence("Ctrl+Y"))
         edit_menu.addAction(redo_action)
 
         edit_menu.addSeparator()
 
+        # Cut action
         cut_action = QAction("Cu&t", self)
         cut_action.setShortcut(QKeySequence("Ctrl+X"))
         edit_menu.addAction(cut_action)
 
+        # Copy action
         copy_action = QAction("&Copy", self)
         copy_action.setShortcut(QKeySequence("Ctrl+C"))
         edit_menu.addAction(copy_action)
 
+        # Paste action
         paste_action = QAction("&Paste", self)
         paste_action.setShortcut(QKeySequence("Ctrl+V"))
         edit_menu.addAction(paste_action)
 
-        edit_menu.addSeparator()
-
-        find_action = QAction("&Find...", self)
-        find_action.setShortcut(QKeySequence("Ctrl+F"))
-        edit_menu.addAction(find_action)
-
-        replace_action = QAction("&Replace...", self)
-        replace_action.setShortcut(QKeySequence("Ctrl+H"))
-        edit_menu.addAction(replace_action)
-
         # Generate menu
-        generate_menu = menubar.addMenu("&Generate")
+        generate_menu = self.menuBar().addMenu("&Generate")
 
-        generate_book_action = QAction("Complete &Book", self)
-        generate_book_action.setShortcut(QKeySequence("Ctrl+Shift+B"))
-        generate_book_action.triggered.connect(lambda: self._on_generate("complete_book"))
-        generate_menu.addAction(generate_book_action)
+        # Complete book action
+        complete_book_action = QAction(IconManager.generate_icon(), "Complete &Book", self)
+        complete_book_action.triggered.connect(lambda: self._on_generate("complete_book"))
+        complete_book_action.setToolTip("Generate a complete book")
+        generate_menu.addAction(complete_book_action)
 
-        generate_outline_action = QAction("&Outline", self)
-        generate_outline_action.setShortcut(QKeySequence("Ctrl+Shift+O"))
-        generate_outline_action.triggered.connect(lambda: self._on_generate("outline"))
-        generate_menu.addAction(generate_outline_action)
+        # Outline action
+        outline_action = QAction("&Outline", self)
+        outline_action.triggered.connect(lambda: self._on_generate("outline"))
+        outline_action.setToolTip("Generate an outline")
+        generate_menu.addAction(outline_action)
 
-        generate_chapter_action = QAction("&Chapter", self)
-        generate_chapter_action.setShortcut(QKeySequence("Ctrl+Shift+C"))
-        generate_chapter_action.triggered.connect(lambda: self._on_generate("chapter"))
-        generate_menu.addAction(generate_chapter_action)
+        # Chapter action
+        chapter_action = QAction("&Chapter", self)
+        chapter_action.triggered.connect(lambda: self._on_generate("chapter"))
+        chapter_action.setToolTip("Generate a chapter")
+        generate_menu.addAction(chapter_action)
 
-        generate_scene_action = QAction("&Scene", self)
-        generate_scene_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
-        generate_scene_action.triggered.connect(lambda: self._on_generate("scene"))
-        generate_menu.addAction(generate_scene_action)
-
-        generate_menu.addSeparator()
-
-        generate_character_action = QAction("C&haracter", self)
-        generate_character_action.setShortcut(QKeySequence("Ctrl+Alt+C"))
-        generate_character_action.triggered.connect(lambda: self._on_generate("character"))
-        generate_menu.addAction(generate_character_action)
-
-        generate_setting_action = QAction("S&etting", self)
-        generate_setting_action.setShortcut(QKeySequence("Ctrl+Alt+S"))
-        generate_setting_action.triggered.connect(lambda: self._on_generate("setting"))
-        generate_menu.addAction(generate_setting_action)
+        # Character action
+        character_action = QAction("C&haracter", self)
+        character_action.triggered.connect(lambda: self._on_generate("character"))
+        character_action.setToolTip("Generate a character")
+        generate_menu.addAction(character_action)
 
         # View menu
-        view_menu = menubar.addMenu("&View")
+        view_menu = self.menuBar().addMenu("&View")
 
-        # Theme submenu
-        theme_menu = QMenu("&Theme", self)
-        view_menu.addMenu(theme_menu)
-
-        light_theme_action = QAction("&Light", self)
-        light_theme_action.triggered.connect(lambda: self._change_theme("light"))
-        theme_menu.addAction(light_theme_action)
-
-        dark_theme_action = QAction("&Dark", self)
-        dark_theme_action.triggered.connect(lambda: self._change_theme("dark"))
-        theme_menu.addAction(dark_theme_action)
-
+        # Refresh action
+        refresh_action = QAction(IconManager.refresh_icon(), "&Refresh", self)
+        refresh_action.setShortcut(QKeySequence("F5"))
+        refresh_action.triggered.connect(self._on_refresh)
+        refresh_action.setToolTip("Refresh the view")
+        view_menu.addAction(refresh_action)
+        
         view_menu.addSeparator()
+        
+        # Theme submenu
+        theme_menu = view_menu.addMenu(IconManager.theme_icon(), "&Theme")
+        
+        # Theme actions
+        theme_actions = {}
+        for theme_name in ["Dark", "Light", "Sepia", "Blue"]:
+            theme_action = QAction(theme_name, self)
+            theme_action.triggered.connect(lambda checked, t=theme_name.lower(): self._change_theme(t))
+            theme_menu.addAction(theme_action)
+            theme_actions[theme_name.lower()] = theme_action
+            
+        # Theme settings action
+        theme_menu.addSeparator()
+        theme_settings_action = QAction("Theme &Settings...", self)
+        theme_settings_action.triggered.connect(self._show_theme_dialog)
+        theme_menu.addAction(theme_settings_action)
 
-        # Add actions for toggling dock widgets
-        # These will be added in the _create_dock_widgets method
+        # Settings action
+        view_menu.addSeparator()
+        settings_action = QAction(IconManager.settings_icon(), "&Settings...", self)
+        settings_action.triggered.connect(self._show_settings_dialog)
+        settings_action.setToolTip("Configure application settings")
+        view_menu.addAction(settings_action)
 
         # Help menu
-        help_menu = menubar.addMenu("&Help")
+        help_menu = self.menuBar().addMenu("&Help")
 
+        # About action
         about_action = QAction("&About", self)
         about_action.triggered.connect(self._show_about_dialog)
         help_menu.addAction(about_action)
 
     def _create_toolbars(self):
-        """Create the toolbars."""
+        """Create the application toolbars."""
         # Main toolbar
-        main_toolbar = QToolBar("Main Toolbar", self)
-        main_toolbar.setObjectName("main_toolbar")
-        main_toolbar.setMovable(False)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, main_toolbar)
+        self.main_toolbar = self.addToolBar("Main")
+        self.main_toolbar.setMovable(False)
+        self.main_toolbar.setIconSize(QSize(24, 24))
 
         # Add actions to the toolbar
-        new_action = QAction("New", self)
+        # New action
+        new_action = QAction(IconManager.new_icon(), "New", self)
         new_action.triggered.connect(self._on_new_project)
-        main_toolbar.addAction(new_action)
+        new_action.setToolTip("Create a new project")
+        self.main_toolbar.addAction(new_action)
 
-        open_action = QAction("Open", self)
+        # Open action
+        open_action = QAction(IconManager.open_icon(), "Open", self)
         open_action.triggered.connect(self._on_open_project)
-        main_toolbar.addAction(open_action)
+        open_action.setToolTip("Open an existing project")
+        self.main_toolbar.addAction(open_action)
 
-        save_action = QAction("Save", self)
+        # Save action
+        save_action = QAction(IconManager.save_icon(), "Save", self)
         save_action.triggered.connect(self._on_save_project)
-        main_toolbar.addAction(save_action)
+        save_action.setToolTip("Save the current project")
+        self.main_toolbar.addAction(save_action)
 
-        main_toolbar.addSeparator()
+        self.main_toolbar.addSeparator()
 
-        generate_action = QAction("Generate", self)
+        # Generate action
+        generate_action = QAction(IconManager.generate_icon(), "Generate", self)
         generate_action.triggered.connect(lambda: self._on_generate("complete_book"))
-        main_toolbar.addAction(generate_action)
+        generate_action.setToolTip("Generate content")
+        self.main_toolbar.addAction(generate_action)
 
-        export_action = QAction("Export", self)
+        # Export action
+        export_action = QAction(IconManager.export_icon(), "Export", self)
         export_action.triggered.connect(self._on_export)
-        main_toolbar.addAction(export_action)
+        export_action.setToolTip("Export the project")
+        self.main_toolbar.addAction(export_action)
+
+        self.main_toolbar.addSeparator()
+
+        # Settings action
+        settings_action = QAction(IconManager.settings_icon(), "Settings", self)
+        settings_action.triggered.connect(self._show_settings_dialog)
+        settings_action.setToolTip("Configure application settings")
+        self.main_toolbar.addAction(settings_action)
 
     def _create_status_bar(self):
         """Create the status bar."""
@@ -270,35 +311,36 @@ class MainWindow(QMainWindow):
 
     def _create_central_widget(self):
         """Create the central widget."""
-        # Create a central widget with a tab widget
-        central_widget = QWidget(self)
-        layout = QVBoxLayout(central_widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        # Create a splitter to divide editor and results
+        # Main splitter for editor and results
         self.main_splitter = QSplitter(Qt.Orientation.Vertical)
 
-        # Create the editor tab widget
+        # Create editor tabs
         self.editor_tabs = EditorTabWidget(self.controller)
         self.main_splitter.addWidget(self.editor_tabs)
 
-        # Create the results panel
+        # Create results panel
         self.results_panel = QWidget()
-        results_layout = QVBoxLayout(self.results_panel)
+        results_layout = QVBoxLayout()
+        results_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Add a header with title and buttons
+        # Results header
+        header_widget = QWidget()
         header_layout = QHBoxLayout()
-        results_header = QLabel("Generated Content")
-        results_header.setObjectName("results_header")
-        header_layout.addWidget(results_header)
+        header_layout.setContentsMargins(10, 5, 10, 5)
 
-        # Add spacer to push buttons to the right
+        # Add header title
+        header_title = QLabel("Generated Content")
+        header_title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        header_layout.addWidget(header_title)
+
+        # Add spacer
         header_layout.addStretch()
 
         # Add Refine button
         self.refine_button = QPushButton("Refine")
         self.refine_button.setToolTip("Refine the generated content")
         self.refine_button.clicked.connect(self._on_refine_content)
+        self.refine_button.setEnabled(False)  # Disabled until content is generated
         header_layout.addWidget(self.refine_button)
 
         # Add Export button
@@ -307,44 +349,34 @@ class MainWindow(QMainWindow):
         export_results_button.clicked.connect(self._on_export)
         header_layout.addWidget(export_results_button)
 
-        results_layout.addLayout(header_layout)
+        header_widget.setLayout(header_layout)
+        header_widget.setStyleSheet("background-color: #f0f0f0;")
+        results_layout.addWidget(header_widget)
 
-        # Add content display area
+        # Results text area
         self.results_text = QTextEdit()
         self.results_text.setReadOnly(True)
-        self.results_text.setMarkdown("""
-# Generated Content Area
-
-This area will show your generated content after using the **Generate** menu or button.
-
-## How to Generate Content:
-1. Make sure you have a project open
-2. Set your generation parameters in the Properties panel
-3. Click Generate → Complete Book (or any other type)
-4. Your generated content will appear here
-
-## Available Generation Types:
-- Complete Book
-- Outline
-- Chapter
-- Scene
-- Character
-
-## Generation Status
-Current status: No content generated yet.
-        """)
         results_layout.addWidget(self.results_text)
 
-        # Show the results panel by default
-        self.results_panel.setVisible(True)
-
-        # Add to splitter
+        self.results_panel.setLayout(results_layout)
         self.main_splitter.addWidget(self.results_panel)
 
-        # Set the initial sizes (70% editor, 30% results)
-        self.main_splitter.setSizes([600, 400])
+        # Initially hide the results panel
+        self.results_panel.setVisible(False)
 
-        layout.addWidget(self.main_splitter)
+        # Create progress widget (initially hidden)
+        self.progress_widget = ProgressWidget()
+        self.progress_widget.setVisible(False)
+        self.progress_widget.cancelled.connect(self._on_cancel_generation)
+
+        # Add widgets to central widget
+        central_widget = QWidget()
+        central_layout = QVBoxLayout()
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.addWidget(self.main_splitter)
+        central_layout.addWidget(self.progress_widget)
+
+        central_widget.setLayout(central_layout)
         self.setCentralWidget(central_widget)
 
     def _setup_shortcuts(self):
@@ -390,22 +422,31 @@ Current status: No content generated yet.
         self.recent_menu.addAction(clear_action)
 
     def _restore_window_state(self):
-        """Restore the window geometry and state."""
-        settings = QSettings("FMUS", "WriterGUI")
-
-        geometry = settings.value("geometry")
-        if geometry:
-            self.restoreGeometry(geometry)
-
-        state = settings.value("windowState")
-        if state:
-            self.restoreState(state)
+        """Restore the window geometry and state from settings."""
+        import base64
+        from PyQt6.QtCore import QByteArray
+        
+        window_state = self.settings_manager.get_window_state()
+        if window_state:
+            if "geometry" in window_state:
+                geometry = QByteArray.fromBase64(window_state["geometry"].encode('ascii'))
+                self.restoreGeometry(geometry)
+            if "state" in window_state:
+                state = QByteArray.fromBase64(window_state["state"].encode('ascii'))
+                self.restoreState(state)
 
     def _save_window_state(self):
-        """Save the window geometry and state."""
-        settings = QSettings("FMUS", "WriterGUI")
-        settings.setValue("geometry", self.saveGeometry())
-        settings.setValue("windowState", self.saveState())
+        """Save the window geometry and state to settings."""
+        # Convert QByteArray to base64 string for JSON serialization
+        import base64
+        geometry = self.saveGeometry()
+        state = self.saveState()
+        
+        window_state = {
+            "geometry": base64.b64encode(geometry.data()).decode('ascii'),
+            "state": base64.b64encode(state.data()).decode('ascii')
+        }
+        self.settings_manager.save_window_state(window_state)
 
     def _on_new_project(self):
         """Handle the new project action."""
@@ -437,9 +478,9 @@ Current status: No content generated yet.
                     structure_type=structure_type,
                     template=template,
                     author=author,
-                    llm_provider=self.controller.settings.get("llm_provider", "gemini"),
-                    model=self.controller.settings.get("model", "gemini-1.5-flash"),
-                    temperature=self.controller.settings.get("temperature", 0.7)
+                    llm_provider=self.controller.settings_manager.get("llm_provider", "gemini"),
+                    model=self.controller.settings_manager.get("model", "gemini-1.5-flash"),
+                    temperature=self.controller.settings_manager.get("temperature", 0.7)
                 )
 
                 self.progress_bar.setValue(50)
@@ -562,7 +603,7 @@ Current status: No content generated yet.
 
         # Show export dialog to select format and options
         output_path, selected_filter = QFileDialog.getSaveFileName(
-            self, "Export Project", "", "Markdown Files (*.md);;EPUB Files (*.epub);;PDF Files (*.pdf);;All Files (*)"
+            self, "Export Project", "", "Markdown Files (*.md);;HTML Files (*.html);;EPUB Files (*.epub);;PDF Files (*.pdf);;All Files (*)"
         )
 
         if output_path:
@@ -578,6 +619,10 @@ Current status: No content generated yet.
                 format_type = "epub"
             elif output_path.lower().endswith(".pdf"):
                 format_type = "pdf"
+            elif output_path.lower().endswith(".html"):
+                format_type = "html"
+            elif output_path.lower().endswith(".txt"):
+                format_type = "text"
 
             try:
                 # Update progress
@@ -627,10 +672,7 @@ Current status: No content generated yet.
 
         # Update status and show progress bar
         self.status_label.setText(f"Generating {scope}... Please wait.")
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setValue(10)
-        QApplication.processEvents()  # Update the UI
-
+        
         # Get generation parameters from properties panel
         provider = self.properties_panel.provider_combo.currentText().lower()
         model = self.properties_panel.model_combo.currentText()
@@ -642,10 +684,6 @@ Current status: No content generated yet.
             "model": model,
             "temperature": temperature
         }
-
-        # Update progress
-        self.progress_bar.setValue(20)
-        QApplication.processEvents()
 
         # Add style if selected
         style = self.properties_panel.style_combo.currentText()
@@ -663,20 +701,24 @@ Current status: No content generated yet.
         if themes:
             params["themes"] = themes
 
-        # Update progress
-        self.progress_bar.setValue(40)
-        QApplication.processEvents()
-
+        # Setup and show progress widget
+        self._setup_progress_for_scope(scope)
+        self.progress_widget.setVisible(True)
+        self.progress_widget.start_process()
+        
+        # Start a timer to simulate step progress
+        self.generation_timer = QTimer(self)
+        self.generation_timer.timeout.connect(self._update_generation_progress)
+        self.generation_timer.start(500)  # Update every 500ms
+        self.generation_step_progress = 0
+        self.generation_scope = scope
+        
         print(f"Generating {scope} with params: {params}")
         success = self.controller.generate_content(scope, **params)
 
-        # Update progress
-        self.progress_bar.setValue(90)
-        QApplication.processEvents()
-
         if success:
+            self.progress_widget.complete_process()
             self.status_label.setText(f"Generation successful: Content ready to export. Click Export to save.")
-            self.progress_bar.setValue(100)
 
             # Display the generated content in the results panel
             self._show_generated_content(scope)
@@ -687,12 +729,79 @@ Current status: No content generated yet.
             # Update the editor tabs
             self.editor_tabs.refresh()
         else:
+            self.progress_widget.fail_process(f"Failed to generate {scope}")
             self.status_label.setText(f"Generation failed: Could not generate {scope}.")
-            self.progress_bar.setValue(0)
             QMessageBox.warning(self, "Warning", f"Could not generate {scope}. Check the log for details.")
 
-        # Hide progress bar after completion (success or failure)
-        self.progress_bar.setVisible(False)
+        # Stop the progress timer
+        if hasattr(self, 'generation_timer'):
+            self.generation_timer.stop()
+
+    def _setup_progress_for_scope(self, scope):
+        """Setup the progress widget based on the generation scope."""
+        if scope == "complete_book":
+            steps = [
+                "Planning story structure",
+                "Creating characters",
+                "Building world and settings",
+                "Developing plot outline",
+                "Writing chapters",
+                "Editing and refining",
+                "Final review"
+            ]
+        elif scope == "chapter":
+            steps = [
+                "Planning chapter structure",
+                "Developing scenes",
+                "Writing content",
+                "Editing and refining"
+            ]
+        elif scope == "outline":
+            steps = [
+                "Analyzing genre requirements",
+                "Creating story structure",
+                "Developing plot points",
+                "Finalizing outline"
+            ]
+        elif scope == "character":
+            steps = [
+                "Creating character profile",
+                "Developing background",
+                "Defining traits and motivations",
+                "Creating character arc"
+            ]
+        else:
+            steps = ["Generating content"]
+            
+        self.progress_widget.set_steps(steps)
+        
+    def _update_generation_progress(self):
+        """Update the progress visualization during generation."""
+        if not hasattr(self, 'generation_step_progress'):
+            return
+            
+        # Update progress within current step
+        self.generation_step_progress += 5
+        if self.generation_step_progress >= 100:
+            # Move to next step
+            current_step = self.progress_widget.current_step_index
+            if current_step < len(self.progress_widget.steps) - 1:
+                self.progress_widget.advance_to_step(current_step + 1)
+                self.generation_step_progress = 0
+            else:
+                self.generation_step_progress = 100
+                
+        self.progress_widget.set_step_progress(self.generation_step_progress)
+        
+    def _on_cancel_generation(self):
+        """Handle cancellation of generation process."""
+        # In a real implementation, you would need to actually cancel
+        # the generation process in the controller
+        self.status_label.setText("Generation cancelled by user")
+        
+        # Stop the progress timer
+        if hasattr(self, 'generation_timer'):
+            self.generation_timer.stop()
 
     def _show_generated_content(self, scope):
         """Display the generated content in the results panel."""
@@ -824,14 +933,28 @@ Current status: No content generated yet.
         self.controller._save_recent_projects()
         self._update_recent_projects_menu()
 
-    def _change_theme(self, theme):
+    def _show_theme_dialog(self):
+        """Show the theme settings dialog."""
+        from ..dialogs.theme_dialog import ThemeDialog
+        
+        # Get current theme from settings
+        current_theme = self.settings_manager.get("theme", "dark")
+        
+        # Create and show the dialog
+        dialog = ThemeDialog(self, current_theme)
+        dialog.theme_selected.connect(lambda theme: self._change_theme(theme, dialog.is_remember_checked()))
+        dialog.exec()
+        
+    def _change_theme(self, theme, save_setting=True):
         """Change the application theme."""
-        self.theme_manager.apply_theme(self, theme)
+        # Apply the light green theme from StylesheetManager
+        StylesheetManager.apply_theme()
 
-        # Update the setting
-        self.controller.update_settings({"theme": theme})
+        # Update the setting if requested
+        if save_setting:
+            self.settings_manager.set("theme", "light_green")
 
-        self.status_label.setText(f"Theme changed to {theme}")
+        self.status_label.setText(f"Theme changed to light green")
 
     def _show_about_dialog(self):
         """Show the about dialog."""
@@ -843,6 +966,25 @@ Current status: No content generated yet.
             "Copyright © 2025 Yusef Ulum\n\n"
             "A GUI for AI-powered content creation."
         )
+
+    def _show_settings_dialog(self):
+        """Show the settings dialog."""
+        from ..dialogs.settings_dialog import SettingsDialog
+        
+        dialog = SettingsDialog(self)
+        dialog.settings_changed.connect(self._on_settings_changed)
+        dialog.exec()
+        
+    def _on_settings_changed(self):
+        """Handle settings changes."""
+        # Update theme if it has changed
+        current_theme = self.settings_manager.get("theme", "dark")
+        self.theme_manager.apply_theme(self, current_theme)
+        
+        # Update status bar
+        self.status_label.setText("Settings updated")
+        
+        # TODO: Apply other settings changes as needed
 
     def closeEvent(self, event):
         """Handle the window close event."""

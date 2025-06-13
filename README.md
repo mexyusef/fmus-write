@@ -1,9 +1,9 @@
-# WriterGUI
+# fmus-write
 
 An AI-powered content creation app.
 (Work in progress)
 
-![Main Application](images/app.png)
+![Main Application](images/app-v2.png)
 
 ## Features
 
