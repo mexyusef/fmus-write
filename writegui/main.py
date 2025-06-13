@@ -116,7 +116,7 @@ def main():
         for key, value in default_settings.items():
             if not controller.settings_manager.has_setting(key):
                 controller.settings_manager.set(key, value)
-                
+
         logger.info(f"Configured default settings: {default_settings}")
 
         logger.info("Creating main window")
@@ -129,7 +129,8 @@ def main():
         logger.info(f"  - Editor tabs: {main_window.editor_tabs.count()} tabs")
         logger.info(f"  - Project tree initialized: {hasattr(main_window, 'project_tree')}")
         logger.info(f"  - Properties panel initialized: {hasattr(main_window, 'properties_panel')}")
-        logger.info(f"  - Results panel visible: {main_window.results_panel.isVisible()}")
+        logger.info(f"  - Content viewer initialized: {hasattr(main_window, 'content_viewer')}")
+        logger.info(f"  - Content viewer visible: {main_window.content_viewer.isVisible()}")
 
         # Create a test project if requested by command line args
         if len(sys.argv) > 1 and sys.argv[1] == "--test":

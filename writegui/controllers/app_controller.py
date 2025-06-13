@@ -67,7 +67,7 @@ class AppController:
 
         # Initialize settings manager
         self.settings_manager = SettingsManager()
-        
+
         # Initialize settings from app_config for backward compatibility
         default_settings = {
             "llm_provider": app_config.get('llm', {}).get('provider', 'openai'),
@@ -77,19 +77,19 @@ class AppController:
             "autosave_interval": app_config.get('interface', {}).get('autosave_interval', 5),
             "theme": app_config.get('interface', {}).get('theme', 'dark'),
         }
-        
+
         # Update settings manager with default values if they don't exist
         for key, value in default_settings.items():
             if not self.settings_manager.has_setting(key):
                 self.settings_manager.set(key, value)
-        
+
         logger.debug(f"Initial settings: {self.settings_manager.get_all()}")
 
         # Load recent projects
         self._load_recent_projects()
         logger.info("AppController initialized successfully")
 
-    def create_project(self, title, genre, structure_type="novel", template=None, author=None, **kwargs):
+    def create_project(self, title, genre, structure_type="novel", template=None, author=None, story_description=None, **kwargs):
         """Create a new project with the given parameters."""
         try:
             # Import the BookProject class
@@ -98,7 +98,7 @@ class AppController:
 
             # Create a new BookProject instance
             print(f"Creating BookProject with title={title}, genre={genre}, structure={structure_type}")
-            project = BookProject(title=title, genre=genre, structure_type=structure_type)
+            project = BookProject(title=title, genre=genre, structure_type=structure_type, story_description=story_description)
             print(f"BookProject created successfully: {project}")
 
             # Set the author if provided
@@ -133,6 +133,8 @@ class AppController:
             logger.info(f"Created new project: {title} ({genre})")
             logger.debug(f"Project structure: {structure_type}")
             logger.debug(f"LLM provider: {llm_provider}, model: {model}, temperature: {temperature}")
+            if story_description:
+                logger.debug(f"Story description provided: {len(story_description)} characters")
 
             print(f"Current project set to: {self.current_project}")
             print(f"Project title: {self.current_project.title}")
@@ -172,11 +174,13 @@ class AppController:
                     title = project_data.get('title', path.stem)
                     genre = project_data.get('genre', 'Fiction')
                     author = project_data.get('author', 'Anonymous')
+                    story_description = project_data.get('story_description', '')
 
                     self.current_project = BookProject(
                         title=title,
                         genre=genre,
-                        author=author
+                        author=author,
+                        story_description=story_description
                     )
             except json.JSONDecodeError:
                 logger.warning(f"Could not parse project file as JSON, creating default project")
@@ -233,6 +237,7 @@ class AppController:
                     "title": self.current_project.title,
                     "genre": self.current_project.genre,
                     "author": getattr(self.current_project, "author", "Anonymous"),
+                    "story_description": getattr(self.current_project, "story_description", ""),
                     "saved_at": current_time,
                     # Add other project data as needed
                 }
@@ -272,7 +277,42 @@ class AppController:
 
             # Generate the content
             logger.debug(f"[START] Generating...")
-            success = self.current_project.generate(workflow_type=workflow_type)
+
+            # Handle the asyncio event loop properly
+            import asyncio
+            import inspect
+
+            # Call the generate method
+            result = self.current_project.generate(workflow_type=workflow_type, **kwargs)
+
+            # Check if the result is a coroutine (async method)
+            if asyncio.iscoroutine(result):
+                logger.debug("Handling async generation result")
+                # Try to get the current event loop
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_closed():
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                except RuntimeError:
+                    # No event loop exists
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                # Run the coroutine
+                generated_content = loop.run_until_complete(result)
+
+                # Store the result in the project
+                self.current_project.generated_content = generated_content
+
+                # Process the generated content
+                self.current_project._process_generated_content(workflow_type)
+
+                success = generated_content is not None
+            else:
+                # Result is already the final content
+                success = result is not None
+
             logger.debug(f"[END] Generating...")
 
             if success:
@@ -326,6 +366,86 @@ class AppController:
             logger.error(f"Error refining content: {e}", exc_info=True)
             return False
 
+    def query_llm(self, prompt, provider="gemini", model=None, temperature=0.7):
+        """
+        Query an LLM with a prompt and return the result.
+
+        Args:
+            prompt: The prompt to send to the LLM
+            provider: The LLM provider to use (e.g., "gemini", "openai")
+            model: The specific model to use
+            temperature: The temperature parameter for generation
+
+        Returns:
+            The generated text response or None if there was an error
+        """
+        logger.info(f"Querying LLM with provider={provider}, model={model}, temperature={temperature}")
+
+        try:
+            from fmus_write.llm import LLMService
+            from fmus_write.llm.base import LLMMessage
+            import asyncio
+
+            # Create LLM configuration
+            llm_config = {
+                "default_provider": provider,
+                "temperature": temperature,
+                "streaming": False,
+                "debug": True
+            }
+
+            # Initialize LLM service
+            llm_service = LLMService(llm_config)
+
+            # Check if the provider is available
+            if provider not in llm_service.providers:
+                logger.error(f"Provider {provider} not available. Available providers: {list(llm_service.providers.keys())}")
+                return None
+
+            # Create a message for the LLM
+            messages = [LLMMessage(role="user", content=prompt)]
+
+            # Create an async function to generate the response
+            async def generate():
+                provider_instance = llm_service.providers.get(provider)
+                if not provider_instance:
+                    logger.error(f"Provider {provider} not available")
+                    return None
+
+                response = await provider_instance.generate_response(
+                    messages=messages,
+                    model=model,
+                    temperature=temperature
+                )
+                return response
+
+            # Run the async function with a new event loop
+            # Check if we're in an event loop already
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_closed():
+                    # Create a new loop if the current one is closed
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+            except RuntimeError:
+                # No event loop exists, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            # Run the coroutine and get the result
+            response = loop.run_until_complete(generate())
+
+            # Don't close the loop as it might be needed for other operations
+
+            logger.info(f"LLM query successful, received {len(response) if response else 0} characters")
+            return response
+
+        except Exception as e:
+            logger.error(f"Error querying LLM: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+
     def export_content(self, output_path: str, format_type: str = "markdown") -> bool:
         """Export the content in the specified format."""
         if not self.current_project:
@@ -375,7 +495,7 @@ class AppController:
         """Update the settings."""
         for key, value in settings.items():
             self.settings_manager.set(key, value)
-        
+
         # Update app_config with relevant settings for backward compatibility
         app_config = self.config_manager.get_app_config()
         if 'llm_provider' in settings:

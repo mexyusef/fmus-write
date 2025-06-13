@@ -58,7 +58,8 @@ class BookProject:
         template: str = "Three-Act Structure",
         provider: str = "gemini",
         model: Optional[str] = None,
-        api_key: Optional[str] = None
+        api_key: Optional[str] = None,
+        story_description: str = ""
     ):
         """
         Initialize a book project.
@@ -72,10 +73,12 @@ class BookProject:
             provider: LLM provider to use
             model: Specific model to use with the provider
             api_key: API key for the LLM provider
+            story_description: User's description of the story idea
         """
         self.title = title
         self.genre = genre
         self.author = author
+        self.story_description = story_description
         self.logger = logging.getLogger(f"fmus_write.book_project.{title}")
 
         # Initialize components
@@ -149,6 +152,10 @@ class BookProject:
             **kwargs,         # Override with any additional arguments
         }
 
+        # Add story description if available
+        if self.story_description:
+            input_data['story_description'] = self.story_description
+
         # Add provider and model information if available
         if 'provider' not in input_data:
             input_data['provider'] = self.settings.get('llm_provider', 'gemini')
@@ -171,20 +178,20 @@ class BookProject:
             # Execute workflow asynchronously
             self.logger.info(f"Running async workflow: {workflow_type}")
 
-            # Use asyncio to run the coroutine
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                # If no event loop is available, create a new one
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-            self.generated_content = loop.run_until_complete(workflow.execute(input_data))
+            # Return the coroutine directly - let the caller handle it
+            # This allows the AppController to manage the event loop
+            return workflow.execute(input_data)
         else:
             # Execute workflow synchronously
             self.generated_content = workflow.execute(input_data)
 
-        # Process the generated content
+            # Process the generated content
+            self._process_generated_content(workflow_type)
+
+            return self.generated_content
+
+    def _process_generated_content(self, workflow_type):
+        """Process the generated content after generation."""
         if self.generated_content:
             # Update story structure if appropriate
             if workflow_type == "complete_book" and isinstance(self.generated_content, dict):
@@ -211,8 +218,6 @@ class BookProject:
             # Log issues but continue
             print(f"Found {len(issues)} consistency issues.")
             print(self.consistency_engine.get_report())
-
-        return self.generated_content
 
     def export(self, output_path: str, format: str = "markdown"):
         """

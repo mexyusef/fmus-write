@@ -32,7 +32,7 @@ class EPUBFormatter(OutputFormatter):
 
         # Create a new EPUB book
         book = epub.EpubBook()
-        
+
         # Set metadata
         book.set_title(title)
         book.set_language('en')
@@ -62,18 +62,18 @@ class EPUBFormatter(OutputFormatter):
             for i, chapter in enumerate(chapters):
                 chapter_title = chapter.get("title", f"Chapter {i+1}")
                 chapter_content = chapter.get("content", "")
-                
+
                 # Create EPUB chapter
                 epub_chapter = epub.EpubHtml(
                     title=chapter_title,
                     file_name=f'chapter_{i+1}.xhtml'
                 )
-                
+
                 # Format content as HTML
                 html_content = f"<h1>{chapter_title}</h1>"
                 html_content += f"<div>{chapter_content}</div>"
                 epub_chapter.set_content(html_content)
-                
+
                 # Add chapter to book
                 book.add_item(epub_chapter)
                 epub_chapters.append(epub_chapter)
@@ -83,13 +83,13 @@ class EPUBFormatter(OutputFormatter):
         # Add navigation files
         book.add_item(epub.EpubNcx())
         book.add_item(epub.EpubNav())
-        
+
         # Define Table of Contents
         book.toc = toc
-        
+
         # Add spine
         book.spine = spine
-        
+
         return book
 
     def write(self, data: Dict[str, Any], output_path: str) -> str:
@@ -112,4 +112,4 @@ class EPUBFormatter(OutputFormatter):
         epub.write_epub(output_path, epub_book)
 
         self.logger.info(f"Wrote EPUB content to {output_path}")
-        return output_path 
+        return output_path

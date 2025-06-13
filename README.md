@@ -3,7 +3,7 @@
 An AI-powered content creation app.
 (Work in progress)
 
-![Main Application](images/app-v2.png)
+![Main Application](images/app.png)
 
 ## Features
 

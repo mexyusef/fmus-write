@@ -91,4 +91,4 @@ class IconManager:
 
     @staticmethod
     def refresh_icon():
-        return IconManager.get_icon("refresh") 
+        return IconManager.get_icon("refresh")

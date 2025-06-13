@@ -36,6 +36,7 @@ class PropertiesPanel(QWidget):
 
         # Setup initial widgets
         self._setup_project_properties()
+        self._setup_story_description()
         self._setup_generation_properties()
 
         # Add stretch to push widgets to the top
@@ -69,12 +70,18 @@ class PropertiesPanel(QWidget):
         # Update project properties if a project is open
         if self.controller.current_project:
             self.project_group.setEnabled(True)
+            self.story_description_group.setEnabled(True)
+
             self.title_edit.setText(self.controller.current_project.title)
             self.genre_edit.setText(self.controller.current_project.genre)
 
             # Set author if available
             if hasattr(self.controller.current_project, 'author'):
                 self.author_edit.setText(self.controller.current_project.author)
+
+            # Set story description if available
+            if hasattr(self.controller.current_project, 'story_description'):
+                self.story_description_text.setText(self.controller.current_project.story_description)
 
             # Enable generation properties
             self.generation_group.setEnabled(True)
@@ -107,12 +114,14 @@ class PropertiesPanel(QWidget):
         else:
             # Disable all groups if no project is open
             self.project_group.setEnabled(False)
+            self.story_description_group.setEnabled(False)
             self.generation_group.setEnabled(False)
 
             # Clear fields
             self.title_edit.clear()
             self.genre_edit.clear()
             self.author_edit.clear()
+            self.story_description_text.clear()
 
     def _setup_project_properties(self):
         """Set up the project properties group."""
@@ -156,6 +165,32 @@ class PropertiesPanel(QWidget):
 
         self.project_group.setLayout(project_layout)
         self.scroll_layout.addWidget(self.project_group)
+
+    def _setup_story_description(self):
+        """Set up the story description group."""
+        self.story_description_group = QGroupBox("Story Description")
+        story_layout = QVBoxLayout()
+
+        # Description label
+        description_label = QLabel(
+            "Describe your story idea here. Include key elements like setting, main characters, "
+            "or plot points you want to include. The AI will use this to guide the generation."
+        )
+        description_label.setWordWrap(True)
+        story_layout.addWidget(description_label)
+
+        # Story description text area
+        self.story_description_text = QTextEdit()
+        self.story_description_text.setMinimumHeight(100)
+        story_layout.addWidget(self.story_description_text)
+
+        # Advanced planning button
+        self.advanced_planning_button = QPushButton("Advanced Planning...")
+        self.advanced_planning_button.clicked.connect(self._show_advanced_planning)
+        story_layout.addWidget(self.advanced_planning_button)
+
+        self.story_description_group.setLayout(story_layout)
+        self.scroll_layout.addWidget(self.story_description_group)
 
     def _setup_generation_properties(self):
         """Set up the generation properties group."""
@@ -245,40 +280,35 @@ class PropertiesPanel(QWidget):
         else:
             self.model_combo.addItem("No models available")
 
+    def _show_advanced_planning(self):
+        """Show the advanced planning dialog."""
+        # This will be implemented later when we create the StoryPlanningDialog
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(
+            self,
+            "Advanced Planning",
+            "Advanced planning interface will be implemented in a future update.\n\n"
+            "For now, please use the story description text area to describe your story."
+        )
+
     def _on_apply_project(self):
         """Apply project property changes."""
         if not self.controller.current_project:
             return
 
-        # Collect values from form
-        title = self.title_edit.text()
-        genre = self.genre_edit.text()
-        author = self.author_edit.text()
-        word_count_target = self.word_count_spinbox.value()
-        chapter_count_target = self.chapter_count_spinbox.value()
+        # Update project properties
+        self.controller.current_project.title = self.title_edit.text()
+        self.controller.current_project.genre = self.genre_edit.text()
+        self.controller.current_project.author = self.author_edit.text()
+        self.controller.current_project.story_description = self.story_description_text.toPlainText()
+        self.controller.current_project.word_count_target = self.word_count_spinbox.value()
+        self.controller.current_project.chapter_count = self.chapter_count_spinbox.value()
 
-        # Set properties on project
-        self.controller.current_project.title = title
-        self.controller.current_project.genre = genre
+        # Save the project
+        self.controller.save_project()
 
-        # Update author if it's a settable attribute
-        if hasattr(self.controller.current_project, 'author'):
-            self.controller.current_project.author = author
-
-        # Additional settings that could be stored in project config
-        settings = {
-            "author": author,
-            "word_count_target": word_count_target,
-            "chapter_count_target": chapter_count_target
-        }
-
-        # Update project settings
-        self.controller.update_settings({"project": settings})
-
-        # Show confirmation in status bar if available
-        main_window = self.window()
-        if hasattr(main_window, 'status_label'):
-            main_window.status_label.setText("Project properties updated")
+        # Update UI elements that might display project info
+        self.controller.update_ui()
 
     def _on_apply_generation(self):
         """Apply generation settings."""

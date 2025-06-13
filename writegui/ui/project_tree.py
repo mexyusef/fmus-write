@@ -12,6 +12,7 @@ class ProjectTreeWidget(QTreeWidget):
     """Tree widget for displaying the project structure."""
 
     item_activated = pyqtSignal(str, str)  # Item type, item id/path
+    content_selected = pyqtSignal(str, object)  # Content type, content object
 
     def __init__(self, controller: AppController, parent=None):
         """Initialize the project tree widget."""
@@ -24,6 +25,7 @@ class ProjectTreeWidget(QTreeWidget):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         self.itemDoubleClicked.connect(self._on_item_double_clicked)
+        self.itemClicked.connect(self._on_item_clicked)
 
         # Initialize the tree with default structure
         self._init_tree()
@@ -76,29 +78,73 @@ class ProjectTreeWidget(QTreeWidget):
         outline_item.setText(0, "Outline")
         outline_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "section", "id": "outline"})
 
+        # Add outline content if available
+        outline_content = None
+        if hasattr(project, 'generated_content') and project.generated_content:
+            if 'outline' in project.generated_content:
+                outline_content = project.generated_content['outline']
+                outline_item.setData(0, Qt.ItemDataRole.UserRole, {
+                    "type": "outline",
+                    "id": "outline",
+                    "content": outline_content
+                })
+                print(f"Found outline content: {type(outline_content)}")
+
         # Chapters section
         chapters_item = QTreeWidgetItem(project_item)
         chapters_item.setText(0, "Chapters")
         chapters_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "section", "id": "chapters"})
 
         # Add actual chapters from the project if available
-        if hasattr(project, 'chapters') and project.chapters:
-            for i, chapter in enumerate(project.chapters):
-                chapter_item = QTreeWidgetItem(chapters_item)
+        has_chapters = False
+        if hasattr(project, 'generated_content') and project.generated_content:
+            if 'chapters' in project.generated_content and isinstance(project.generated_content['chapters'], list):
+                chapters = project.generated_content['chapters']
+                has_chapters = True
+                print(f"Found {len(chapters)} chapters in generated_content")
 
-                # Get chapter title
-                if isinstance(chapter, dict):
-                    title = chapter.get('title', f"Chapter {i+1}")
-                else:
-                    title = f"Chapter {i+1}"
+                for i, chapter in enumerate(chapters):
+                    chapter_item = QTreeWidgetItem(chapters_item)
 
-                chapter_item.setText(0, title)
-                chapter_item.setData(0, Qt.ItemDataRole.UserRole, {
-                    "type": "chapter",
-                    "id": f"chapter_{i+1}"
-                })
-        else:
-            # If no chapters, add a placeholder
+                    # Get chapter title
+                    if isinstance(chapter, dict):
+                        title = chapter.get('title', f"Chapter {i+1}")
+                    else:
+                        title = f"Chapter {i+1}"
+
+                    chapter_item.setText(0, title)
+                    chapter_item.setData(0, Qt.ItemDataRole.UserRole, {
+                        "type": "chapter",
+                        "id": f"chapter_{i+1}",
+                        "content": chapter
+                    })
+
+        # If no chapters in generated_content, check story.chapters
+        if not has_chapters and hasattr(project, 'story') and hasattr(project.story, 'chapters'):
+            chapters = project.story.chapters
+            if chapters and isinstance(chapters, list):
+                has_chapters = True
+                print(f"Found {len(chapters)} chapters in story.chapters")
+
+                for i, chapter in enumerate(chapters):
+                    chapter_item = QTreeWidgetItem(chapters_item)
+
+                    # Get chapter title
+                    if isinstance(chapter, dict):
+                        title = chapter.get('title', f"Chapter {i+1}")
+                    else:
+                        title = f"Chapter {i+1}"
+
+                    chapter_item.setText(0, title)
+                    chapter_item.setData(0, Qt.ItemDataRole.UserRole, {
+                        "type": "chapter",
+                        "id": f"chapter_{i+1}",
+                        "content": chapter
+                    })
+
+        # If still no chapters, add placeholders
+        if not has_chapters:
+            print("No chapters found, adding placeholders")
             for i in range(1, 4):  # Default to 3 placeholder chapters
                 chapter_item = QTreeWidgetItem(chapters_item)
                 chapter_item.setText(0, f"Chapter {i}")
@@ -113,23 +159,60 @@ class ProjectTreeWidget(QTreeWidget):
         characters_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "section", "id": "characters"})
 
         # Add actual characters from the project if available
-        if hasattr(project, 'characters') and project.characters:
-            for i, character in enumerate(project.characters):
-                character_item = QTreeWidgetItem(characters_item)
+        has_characters = False
+        if hasattr(project, 'generated_content') and project.generated_content:
+            if 'characters' in project.generated_content:
+                characters_data = project.generated_content['characters']
+                if isinstance(characters_data, dict) and 'characters' in characters_data:
+                    character_list = characters_data['characters']
+                    if isinstance(character_list, list):
+                        has_characters = True
+                        print(f"Found {len(character_list)} characters in generated_content")
 
-                # Get character name
-                if isinstance(character, dict):
-                    name = character.get('name', f"Character {i+1}")
-                else:
-                    name = f"Character {i+1}"
+                        for i, character in enumerate(character_list):
+                            character_item = QTreeWidgetItem(characters_item)
 
-                character_item.setText(0, name)
-                character_item.setData(0, Qt.ItemDataRole.UserRole, {
-                    "type": "character",
-                    "id": f"character_{i+1}"
-                })
-        else:
-            # Add default characters
+                            # Get character name
+                            if isinstance(character, dict):
+                                name = character.get('name', f"Character {i+1}")
+                            else:
+                                name = f"Character {i+1}"
+
+                            character_item.setText(0, name)
+                            character_item.setData(0, Qt.ItemDataRole.UserRole, {
+                                "type": "character",
+                                "id": f"character_{i+1}",
+                                "content": character
+                            })
+
+        # If no characters in generated_content, check project.characters
+        if not has_characters and hasattr(project, 'characters'):
+            character_list = project.characters
+            if character_list and isinstance(character_list, list):
+                has_characters = True
+                print(f"Found {len(character_list)} characters in project.characters")
+
+                for i, character in enumerate(character_list):
+                    character_item = QTreeWidgetItem(characters_item)
+
+                    # Get character name
+                    if hasattr(character, 'name'):
+                        name = character.name
+                    elif isinstance(character, dict):
+                        name = character.get('name', f"Character {i+1}")
+                    else:
+                        name = f"Character {i+1}"
+
+                    character_item.setText(0, name)
+                    character_item.setData(0, Qt.ItemDataRole.UserRole, {
+                        "type": "character",
+                        "id": f"character_{i+1}",
+                        "content": character
+                    })
+
+        # If still no characters, add placeholders
+        if not has_characters:
+            print("No characters found, adding placeholders")
             character_names = ["Protagonist", "Antagonist", "Supporting Character"]
             for name in character_names:
                 character_item = QTreeWidgetItem(characters_item)
@@ -161,6 +244,20 @@ class ProjectTreeWidget(QTreeWidget):
 
         if item_type and item_id:
             self.item_activated.emit(item_type, item_id)
+
+    def _on_item_clicked(self, item, column):
+        """Handle clicking an item."""
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+
+        item_type = data.get("type")
+        content = data.get("content")
+
+        # Only emit for content types we can display
+        if item_type in ["chapter", "character", "outline"] and content:
+            print(f"Emitting content_selected for {item_type}")
+            self.content_selected.emit(item_type, content)
 
     def _show_context_menu(self, position):
         """Show context menu for the tree item at the given position."""
@@ -251,10 +348,10 @@ class ProjectTreeWidget(QTreeWidget):
         """Handle adding a character."""
         # TODO: Implement this
         # For now, just add a new item to the tree
-        character_name = f"New Character {item.childCount() + 1}"
+        character_count = item.childCount() + 1
         character_item = QTreeWidgetItem(item)
-        character_item.setText(0, character_name)
-        character_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "character", "id": character_name.lower().replace(" ", "_")})
+        character_item.setText(0, f"Character {character_count}")
+        character_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "character", "id": f"character_{character_count}"})
 
         # Expand the parent item
         self.expandItem(item)
@@ -263,16 +360,17 @@ class ProjectTreeWidget(QTreeWidget):
         """Handle adding a setting."""
         # TODO: Implement this
         # For now, just add a new item to the tree
-        setting_name = f"New Setting {item.childCount() + 1}"
+        setting_count = item.childCount() + 1
         setting_item = QTreeWidgetItem(item)
-        setting_item.setText(0, setting_name)
-        setting_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "setting", "id": setting_name.lower().replace(" ", "_")})
+        setting_item.setText(0, f"Setting {setting_count}")
+        setting_item.setData(0, Qt.ItemDataRole.UserRole, {"type": "setting", "id": f"setting_{setting_count}"})
 
         # Expand the parent item
         self.expandItem(item)
 
     def _on_edit_item(self, item):
         """Handle editing an item."""
+        # TODO: Implement this
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data:
             return
@@ -280,11 +378,11 @@ class ProjectTreeWidget(QTreeWidget):
         item_type = data.get("type")
         item_id = data.get("id")
 
-        # TODO: Implement this
-        QMessageBox.information(self, "Edit", f"Edit {item_type} {item_id}")
+        QMessageBox.information(self, "Edit", f"Edit {item_type}: {item_id}")
 
     def _on_delete_item(self, item):
         """Handle deleting an item."""
+        # TODO: Implement this
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data:
             return
@@ -292,28 +390,29 @@ class ProjectTreeWidget(QTreeWidget):
         item_type = data.get("type")
         item_id = data.get("id")
 
-        # Confirm deletion
+        # Ask for confirmation
         reply = QMessageBox.question(
             self,
-            "Confirm Deletion",
-            f"Are you sure you want to delete {item.text(0)}?",
+            "Confirm Delete",
+            f"Are you sure you want to delete this {item_type}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            # TODO: Implement actual deletion in the project
-            # For now, just remove the item from the tree
+            # Remove the item from the tree
             parent = item.parent()
-            parent.removeChild(item)
+            if parent:
+                parent.removeChild(item)
+            else:
+                self.invisibleRootItem().removeChild(item)
 
     def _on_generate_chapter(self, item):
         """Handle generating content for a chapter."""
+        # TODO: Implement this
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if not data:
             return
 
         item_id = data.get("id")
-
-        # TODO: Implement this
-        QMessageBox.information(self, "Generate Chapter", f"Generate content for {item.text(0)}")
+        QMessageBox.information(self, "Generate Chapter", f"Generate content for {item_id}")

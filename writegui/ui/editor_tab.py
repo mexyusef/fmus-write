@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt, pyqtSlot
 from PyQt6.QtGui import QFont, QTextCharFormat, QColor
 
 from writegui.controllers.app_controller import AppController
+from writegui.ui.content_viewers import ContentViewerFactory
 
 # Set up logging
 logger = logging.getLogger("WriterGUI.EditorTab")
@@ -28,6 +29,9 @@ class EditorTabWidget(QTabWidget):
 
         # Set up initial tabs
         self._setup_initial_tabs()
+
+        # Track open content tabs
+        self.content_tabs = {}  # {content_id: tab_index}
 
         logger.debug("EditorTabWidget initialized")
 
@@ -175,6 +179,9 @@ class EditorTabWidget(QTabWidget):
         while self.count() > 0:
             self.removeTab(0)
 
+        # Reset content tabs tracking
+        self.content_tabs = {}
+
         # Setup tabs again
         self._setup_initial_tabs()
 
@@ -202,9 +209,77 @@ class EditorTabWidget(QTabWidget):
         """Close the tab at the given index."""
         # Don't close the last tab
         if self.count() > 1:
+            # Get the widget to check if it's a content tab
+            widget = self.widget(index)
+
+            # Update content_tabs tracking if this was a content tab
+            content_id = None
+            for cid, tab_idx in list(self.content_tabs.items()):
+                if tab_idx == index:
+                    content_id = cid
+                    break
+
+            if content_id:
+                del self.content_tabs[content_id]
+
+                # Adjust indices for tabs that come after the closed tab
+                for cid, tab_idx in self.content_tabs.items():
+                    if tab_idx > index:
+                        self.content_tabs[cid] = tab_idx - 1
+
+            # Remove the tab
             self.removeTab(index)
 
         logger.debug(f"Tab closed, remaining tabs: {self.count()}")
+
+    def open_content_tab(self, content_type: str, content: object):
+        """
+        Open a tab for the specified content.
+
+        Args:
+            content_type: Type of content ('chapter', 'character', 'outline')
+            content: The content object to display
+        """
+        # Create a unique ID for this content
+        content_id = None
+
+        if content_type == 'chapter' and isinstance(content, dict):
+            content_id = f"chapter_{content.get('number', 0)}"
+        elif content_type == 'character' and isinstance(content, dict):
+            content_id = f"character_{content.get('name', 'unknown').lower().replace(' ', '_')}"
+        elif content_type == 'outline':
+            content_id = "outline"
+
+        # If no valid ID could be created, generate a unique one
+        if not content_id:
+            import uuid
+            content_id = f"{content_type}_{uuid.uuid4().hex[:8]}"
+
+        logger.debug(f"Opening content tab for {content_type} with ID {content_id}")
+
+        # Check if this content is already open in a tab
+        if content_id in self.content_tabs:
+            # Switch to the existing tab
+            self.setCurrentIndex(self.content_tabs[content_id])
+            logger.debug(f"Switched to existing tab for {content_id}")
+            return
+
+        # Create a new content viewer
+        viewer = ContentViewerFactory.create_viewer(content_type, content)
+
+        # Get a title for the tab
+        tab_title = viewer.get_title()
+
+        # Add the tab
+        tab_index = self.addTab(viewer, tab_title)
+
+        # Store the tab index for this content
+        self.content_tabs[content_id] = tab_index
+
+        # Switch to the new tab
+        self.setCurrentIndex(tab_index)
+
+        logger.debug(f"Created new tab for {content_type}: {tab_title}")
 
     def open_tab(self, tab_type: str, tab_id: str):
         """Open a tab for the specified item."""
@@ -250,21 +325,21 @@ class EditorTabWidget(QTabWidget):
         preview = QTextEdit()
         preview.setReadOnly(True)
 
+        # Add editor and preview to splitter
+        splitter.addWidget(editor)
+        splitter.addWidget(preview)
+
+        # Set initial sizes
+        splitter.setSizes([int(splitter.width() * 0.5), int(splitter.width() * 0.5)])
+
+        # Add splitter to layout
+        layout.addWidget(splitter)
+
         # Connect editor to preview
         editor.textChanged.connect(lambda: self._update_preview(editor, preview))
 
-        # Add to splitter
-        splitter.addWidget(editor)
-        splitter.addWidget(preview)
-        splitter.setSizes([int(splitter.width() * 0.6), int(splitter.width() * 0.4)])
-
-        layout.addWidget(splitter)
-
-        # Add an initial character template
-        editor.setPlainText(f"# {character_name}\n\n## Basic Information\n\n- **Full Name**: {character_name}\n- **Age**: \n- **Occupation**: \n- **Physical Description**: \n\n## Background\n\n[Character background here]\n\n## Personality\n\n- **Traits**: \n- **Strengths**: \n- **Weaknesses**: \n- **Motivations**: \n\n## Role in Story\n\n[Character's role and arc in the story]")
-
+        # Add the tab
         self.addTab(character_widget, character_name)
-        self.setCurrentWidget(character_widget)
 
     def _add_setting_tab(self, setting_id: str):
         """Add a setting tab."""
@@ -291,192 +366,28 @@ class EditorTabWidget(QTabWidget):
         preview = QTextEdit()
         preview.setReadOnly(True)
 
+        # Add editor and preview to splitter
+        splitter.addWidget(editor)
+        splitter.addWidget(preview)
+
+        # Set initial sizes
+        splitter.setSizes([int(splitter.width() * 0.5), int(splitter.width() * 0.5)])
+
+        # Add splitter to layout
+        layout.addWidget(splitter)
+
         # Connect editor to preview
         editor.textChanged.connect(lambda: self._update_preview(editor, preview))
 
-        # Add to splitter
-        splitter.addWidget(editor)
-        splitter.addWidget(preview)
-        splitter.setSizes([int(splitter.width() * 0.6), int(splitter.width() * 0.4)])
-
-        layout.addWidget(splitter)
-
-        # Add an initial setting template
-        editor.setPlainText(f"# {setting_name}\n\n## Description\n\n[General description of the setting]\n\n## Physical Characteristics\n\n- **Location**: \n- **Climate**: \n- **Geography**: \n- **Notable Features**: \n\n## Cultural Elements\n\n- **Inhabitants**: \n- **Customs**: \n- **History**: \n- **Economy**: \n\n## Role in Story\n\n[How this setting impacts the story and characters]")
-
+        # Add the tab
         self.addTab(setting_widget, setting_name)
-        self.setCurrentWidget(setting_widget)
 
     def _update_preview(self, editor: QPlainTextEdit, preview: QTextEdit):
-        """Update the preview based on the editor content."""
-        # Get the content from the editor
-        content = editor.toPlainText()
-
-        # Convert Markdown to HTML (basic implementation)
-        html_content = self._markdown_to_html(content)
-
-        # Set the HTML content to the preview
-        preview.setHtml(html_content)
+        """Update the preview with the editor content."""
+        markdown = editor.toPlainText()
+        preview.setMarkdown(markdown)
 
     def _markdown_to_html(self, markdown: str) -> str:
-        """Convert Markdown to HTML (basic implementation)."""
-        # This is a very basic implementation
-        # A real implementation would use a library like markdown or commonmark
-
-        # Wrap the content in a styled HTML document
-        html = """
-        <html>
-        <head>
-            <style>
-                body {
-                    font-family: 'Segoe UI', Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #e0e0e0;
-                    background-color: #1a237e;
-                    padding: 10px;
-                }
-                h1, h2, h3, h4, h5, h6 {
-                    color: #00bfa5;
-                    margin-top: 20px;
-                    margin-bottom: 10px;
-                }
-                h1 {
-                    font-size: 24px;
-                    border-bottom: 1px solid #303F9F;
-                    padding-bottom: 5px;
-                }
-                h2 {
-                    font-size: 20px;
-                }
-                h3 {
-                    font-size: 16px;
-                }
-                p {
-                    margin: 10px 0;
-                }
-                ul, ol {
-                    margin: 10px 0;
-                    padding-left: 20px;
-                }
-                li {
-                    margin: 5px 0;
-                }
-                code {
-                    background-color: #0a0a2e;
-                    padding: 2px 4px;
-                    border-radius: 3px;
-                    font-family: Consolas, monospace;
-                }
-                pre {
-                    background-color: #0a0a2e;
-                    padding: 10px;
-                    border-radius: 5px;
-                    overflow-x: auto;
-                    font-family: Consolas, monospace;
-                }
-                blockquote {
-                    margin: 10px 0;
-                    padding: 10px 20px;
-                    border-left: 5px solid #00bfa5;
-                    background-color: rgba(0, 191, 165, 0.1);
-                }
-                strong {
-                    color: #ffffff;
-                }
-            </style>
-        </head>
-        <body>
-        """
-
-        # Process Markdown syntax
-        lines = markdown.split("\n")
-        in_code_block = False
-        in_list = False
-
-        for line in lines:
-            # Code blocks
-            if line.startswith("```"):
-                if in_code_block:
-                    html += "</pre>\n"
-                    in_code_block = False
-                else:
-                    html += "<pre><code>"
-                    in_code_block = True
-                continue
-
-            if in_code_block:
-                html += line.replace("<", "&lt;").replace(">", "&gt;") + "\n"
-                continue
-
-            # Empty line
-            if not line.strip():
-                if in_list:
-                    html += "</ul>\n" if in_list == "ul" else "</ol>\n"
-                    in_list = False
-                html += "<p></p>\n"
-                continue
-
-            # Headings
-            if line.startswith("# "):
-                html += f"<h1>{line[2:]}</h1>\n"
-            elif line.startswith("## "):
-                html += f"<h2>{line[3:]}</h2>\n"
-            elif line.startswith("### "):
-                html += f"<h3>{line[4:]}</h3>\n"
-            elif line.startswith("#### "):
-                html += f"<h4>{line[5:]}</h4>\n"
-            elif line.startswith("##### "):
-                html += f"<h5>{line[6:]}</h5>\n"
-            elif line.startswith("###### "):
-                html += f"<h6>{line[7:]}</h6>\n"
-
-            # Lists
-            elif line.strip().startswith("- "):
-                if in_list != "ul":
-                    if in_list:
-                        html += "</ol>\n" if in_list == "ol" else "</ul>\n"
-                    html += "<ul>\n"
-                    in_list = "ul"
-                html += f"<li>{line.strip()[2:]}</li>\n"
-            elif line.strip().startswith("* "):
-                if in_list != "ul":
-                    if in_list:
-                        html += "</ol>\n" if in_list == "ol" else "</ul>\n"
-                    html += "<ul>\n"
-                    in_list = "ul"
-                html += f"<li>{line.strip()[2:]}</li>\n"
-            elif line.strip().startswith("1. ") or line.strip().startswith("1) "):
-                if in_list != "ol":
-                    if in_list:
-                        html += "</ul>\n" if in_list == "ul" else "</ol>\n"
-                    html += "<ol>\n"
-                    in_list = "ol"
-                html += f"<li>{line.strip()[3:]}</li>\n"
-
-            # Blockquotes
-            elif line.startswith("> "):
-                html += f"<blockquote>{line[2:]}</blockquote>\n"
-
-            # Regular paragraph
-            else:
-                # Process inline formatting
-                text = line
-                # Bold
-                text = text.replace("**", "<strong>", 1).replace("**", "</strong>", 1) if "**" in text else text
-                # Italic
-                text = text.replace("*", "<em>", 1).replace("*", "</em>", 1) if "*" in text else text
-                # Inline code
-                text = text.replace("`", "<code>", 1).replace("`", "</code>", 1) if "`" in text else text
-
-                html += f"<p>{text}</p>\n"
-
-        # Close any open lists
-        if in_list:
-            html += "</ul>\n" if in_list == "ul" else "</ol>\n"
-
-        html += """
-        </body>
-        </html>
-        """
-
-        return html
+        """Convert markdown to HTML."""
+        # This is a placeholder. In a real implementation, you would use a proper markdown library.
+        return markdown.replace("\n", "<br>")

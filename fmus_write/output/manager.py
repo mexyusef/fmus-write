@@ -43,29 +43,29 @@ class OutputManager:
         """
         self.config = config or {}
         self._initialize_formatters()
-        
+
     def _initialize_formatters(self):
         """Initialize the formatter objects."""
         self.formatter_objects = {
             "markdown": MarkdownFormatter(),
             "text": TextFormatter(),
         }
-        
+
         # Add HTML formatter
         self.formatter_objects["html"] = HTMLFormatter()
-        
+
         # Add EPUB formatter if dependency is available
         if EPUB_AVAILABLE:
             self.formatter_objects["epub"] = EPUBFormatter()
         else:
             logger.warning("EPUB support not available. Install ebooklib to enable EPUB export.")
-            
+
         # Add PDF formatter if dependency is available
         if PDF_AVAILABLE:
             self.formatter_objects["pdf"] = PDFFormatter()
         else:
             logger.warning("PDF support not available. Install reportlab to enable PDF export.")
-        
+
         # Legacy formatters for backward compatibility
         self.formatters = {
             "markdown": self._format_markdown,
@@ -73,10 +73,10 @@ class OutputManager:
             "text": self._format_text,
             "json": self._format_json,
         }
-        
+
         if EPUB_AVAILABLE:
             self.formatters["epub"] = self._format_epub
-            
+
         if PDF_AVAILABLE:
             self.formatters["pdf"] = self._format_pdf
 
@@ -110,7 +110,7 @@ class OutputManager:
             except Exception as e:
                 logger.error(f"Error using {format_type} formatter: {e}")
                 logger.info("Falling back to legacy formatter")
-        
+
         # Fall back to legacy formatters
         if format_type not in self.formatters:
             raise ValueError(f"Unsupported format: {format_type}")
@@ -376,20 +376,20 @@ class OutputManager:
         """
         if not PDF_AVAILABLE:
             raise ImportError("PDF support requires reportlab to be installed")
-            
+
         # Create a temporary file for the PDF
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             temp_path = tmp.name
-            
+
         try:
             # Use the PDF formatter to create the file
             pdf_formatter = PDFFormatter()
             pdf_formatter.write(data, temp_path)
-            
+
             # Read the file back as bytes
             with open(temp_path, "rb") as f:
                 pdf_content = f.read()
-                
+
             return pdf_content
         finally:
             # Clean up the temporary file

@@ -242,4 +242,4 @@ class StylesheetManager:
         }
         """
 
-        QApplication.instance().setStyleSheet(stylesheet) 
+        QApplication.instance().setStyleSheet(stylesheet)

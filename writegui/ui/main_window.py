@@ -15,12 +15,13 @@ from writegui.controllers.app_controller import AppController
 from writegui.ui.project_tree import ProjectTreeWidget
 from writegui.ui.editor_tab import EditorTabWidget
 from writegui.ui.properties_panel import PropertiesPanel
+from writegui.ui.progress_widget import ProgressWidget
+from writegui.ui.content_viewer import ContentViewerWidget
 from writegui.dialogs.new_project_dialog import NewProjectDialog
 from writegui.dialogs.refine_content_dialog import RefineContentDialog
 from writegui.utils.stylesheet_manager import StylesheetManager
 from writegui.utils.theme_manager import ThemeManager
 from writegui.utils.settings_manager import SettingsManager
-from writegui.ui.progress_widget import ProgressWidget
 from writegui.resources.icons import IconManager
 
 
@@ -39,7 +40,7 @@ class MainWindow(QMainWindow):
         # Setup theme and settings
         self.theme_manager = ThemeManager()
         self.settings_manager = controller.settings_manager
-        
+
         # Apply the light green theme from StylesheetManager
         StylesheetManager.apply_theme()
 
@@ -49,6 +50,9 @@ class MainWindow(QMainWindow):
         self._create_status_bar()
         self._create_dock_widgets()
         self._create_central_widget()
+
+        # Connect project tree signals to editor tabs
+        self.project_tree.content_selected.connect(self._on_content_selected)
 
         # Setup shortcuts
         self._setup_shortcuts()
@@ -183,12 +187,12 @@ class MainWindow(QMainWindow):
         refresh_action.triggered.connect(self._on_refresh)
         refresh_action.setToolTip("Refresh the view")
         view_menu.addAction(refresh_action)
-        
+
         view_menu.addSeparator()
-        
+
         # Theme submenu
         theme_menu = view_menu.addMenu(IconManager.theme_icon(), "&Theme")
-        
+
         # Theme actions
         theme_actions = {}
         for theme_name in ["Dark", "Light", "Sepia", "Blue"]:
@@ -196,7 +200,7 @@ class MainWindow(QMainWindow):
             theme_action.triggered.connect(lambda checked, t=theme_name.lower(): self._change_theme(t))
             theme_menu.addAction(theme_action)
             theme_actions[theme_name.lower()] = theme_action
-            
+
         # Theme settings action
         theme_menu.addSeparator()
         theme_settings_action = QAction("Theme &Settings...", self)
@@ -318,51 +322,15 @@ class MainWindow(QMainWindow):
         self.editor_tabs = EditorTabWidget(self.controller)
         self.main_splitter.addWidget(self.editor_tabs)
 
-        # Create results panel
-        self.results_panel = QWidget()
-        results_layout = QVBoxLayout()
-        results_layout.setContentsMargins(0, 0, 0, 0)
+        # Import ContentViewerWidget
+        from writegui.ui.content_viewer import ContentViewerWidget
 
-        # Results header
-        header_widget = QWidget()
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(10, 5, 10, 5)
+        # Create content viewer
+        self.content_viewer = ContentViewerWidget()
+        self.main_splitter.addWidget(self.content_viewer)
 
-        # Add header title
-        header_title = QLabel("Generated Content")
-        header_title.setStyleSheet("font-weight: bold; font-size: 14px;")
-        header_layout.addWidget(header_title)
-
-        # Add spacer
-        header_layout.addStretch()
-
-        # Add Refine button
-        self.refine_button = QPushButton("Refine")
-        self.refine_button.setToolTip("Refine the generated content")
-        self.refine_button.clicked.connect(self._on_refine_content)
-        self.refine_button.setEnabled(False)  # Disabled until content is generated
-        header_layout.addWidget(self.refine_button)
-
-        # Add Export button
-        export_results_button = QPushButton("Export")
-        export_results_button.setToolTip("Export the generated content")
-        export_results_button.clicked.connect(self._on_export)
-        header_layout.addWidget(export_results_button)
-
-        header_widget.setLayout(header_layout)
-        header_widget.setStyleSheet("background-color: #f0f0f0;")
-        results_layout.addWidget(header_widget)
-
-        # Results text area
-        self.results_text = QTextEdit()
-        self.results_text.setReadOnly(True)
-        results_layout.addWidget(self.results_text)
-
-        self.results_panel.setLayout(results_layout)
-        self.main_splitter.addWidget(self.results_panel)
-
-        # Initially hide the results panel
-        self.results_panel.setVisible(False)
+        # Initially hide the content viewer
+        self.content_viewer.setVisible(False)
 
         # Create progress widget (initially hidden)
         self.progress_widget = ProgressWidget()
@@ -425,7 +393,7 @@ class MainWindow(QMainWindow):
         """Restore the window geometry and state from settings."""
         import base64
         from PyQt6.QtCore import QByteArray
-        
+
         window_state = self.settings_manager.get_window_state()
         if window_state:
             if "geometry" in window_state:
@@ -441,7 +409,7 @@ class MainWindow(QMainWindow):
         import base64
         geometry = self.saveGeometry()
         state = self.saveState()
-        
+
         window_state = {
             "geometry": base64.b64encode(geometry.data()).decode('ascii'),
             "state": base64.b64encode(state.data()).decode('ascii')
@@ -459,6 +427,7 @@ class MainWindow(QMainWindow):
             title = dialog.get_title()
             genre = dialog.get_genre()
             author = dialog.get_author()
+            story_description = dialog.get_story_description()
             structure_type = dialog.get_structure_type()
             template = dialog.get_template()
 
@@ -469,6 +438,8 @@ class MainWindow(QMainWindow):
             QApplication.processEvents()  # Update the UI
 
             print(f"Creating project with title={title}, genre={genre}, author={author}, structure={structure_type}")
+            if story_description:
+                print(f"Story description provided: {len(story_description)} characters")
 
             # Create a new project
             try:
@@ -478,6 +449,7 @@ class MainWindow(QMainWindow):
                     structure_type=structure_type,
                     template=template,
                     author=author,
+                    story_description=story_description,
                     llm_provider=self.controller.settings_manager.get("llm_provider", "gemini"),
                     model=self.controller.settings_manager.get("model", "gemini-1.5-flash"),
                     temperature=self.controller.settings_manager.get("temperature", 0.7)
@@ -670,9 +642,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Warning", "No project is currently open.")
             return
 
-        # Update status and show progress bar
-        self.status_label.setText(f"Generating {scope}... Please wait.")
-        
+        # Update status
+        self.status_label.setText(f"Preparing to generate {scope}...")
+
         # Get generation parameters from properties panel
         provider = self.properties_panel.provider_combo.currentText().lower()
         model = self.properties_panel.model_combo.currentText()
@@ -705,126 +677,129 @@ class MainWindow(QMainWindow):
         self._setup_progress_for_scope(scope)
         self.progress_widget.setVisible(True)
         self.progress_widget.start_process()
-        
-        # Start a timer to simulate step progress
-        self.generation_timer = QTimer(self)
-        self.generation_timer.timeout.connect(self._update_generation_progress)
-        self.generation_timer.start(500)  # Update every 500ms
-        self.generation_step_progress = 0
-        self.generation_scope = scope
-        
-        print(f"Generating {scope} with params: {params}")
-        success = self.controller.generate_content(scope, **params)
 
-        if success:
-            self.progress_widget.complete_process()
-            self.status_label.setText(f"Generation successful: Content ready to export. Click Export to save.")
+        # Import the GenerationWorker
+        from writegui.utils.generation_worker import GenerationWorker
 
-            # Display the generated content in the results panel
-            self._show_generated_content(scope)
+        # Create and start the generation worker
+        self.generation_worker = GenerationWorker(self.controller, scope, params)
 
-            # Enable the refine button
-            self.refine_button.setEnabled(True)
+        # Connect signals
+        self.generation_worker.progress_updated.connect(self._on_generation_progress_updated)
+        self.generation_worker.step_completed.connect(self._on_generation_step_completed)
+        self.generation_worker.step_progress.connect(self._on_generation_step_progress)
+        self.generation_worker.generation_completed.connect(self._on_generation_completed)
 
-            # Update the editor tabs
-            self.editor_tabs.refresh()
-        else:
-            self.progress_widget.fail_process(f"Failed to generate {scope}")
-            self.status_label.setText(f"Generation failed: Could not generate {scope}.")
-            QMessageBox.warning(self, "Warning", f"Could not generate {scope}. Check the log for details.")
+        # Start the worker
+        self.generation_worker.start()
 
-        # Stop the progress timer
-        if hasattr(self, 'generation_timer'):
-            self.generation_timer.stop()
+        # Update UI to show generation is in progress
+        self.status_label.setText(f"Generating {scope}... (non-blocking)")
 
     def _setup_progress_for_scope(self, scope):
         """Setup the progress widget based on the generation scope."""
         if scope == "complete_book":
             steps = [
-                "Planning story structure",
-                "Creating characters",
-                "Building world and settings",
-                "Developing plot outline",
-                "Writing chapters",
-                "Editing and refining",
-                "Final review"
+                "Analyzing project settings",
+                "Creating story outline",
+                "Developing characters",
+                "Generating chapters",
+                "Finalizing content"
             ]
         elif scope == "chapter":
             steps = [
-                "Planning chapter structure",
-                "Developing scenes",
-                "Writing content",
-                "Editing and refining"
+                "Analyzing project context",
+                "Creating chapter outline",
+                "Generating chapter content",
+                "Reviewing for consistency"
             ]
         elif scope == "outline":
             steps = [
-                "Analyzing genre requirements",
+                "Analyzing project settings",
                 "Creating story structure",
                 "Developing plot points",
                 "Finalizing outline"
             ]
         elif scope == "character":
             steps = [
+                "Analyzing character requirements",
                 "Creating character profile",
                 "Developing background",
-                "Defining traits and motivations",
-                "Creating character arc"
+                "Finalizing character details"
             ]
         else:
-            steps = ["Generating content"]
-            
+            steps = ["Preparing", "Generating", "Finalizing"]
+
         self.progress_widget.set_steps(steps)
-        
+
+    def _on_generation_progress_updated(self, progress, message):
+        """Handle progress updates from the generation worker."""
+        self.status_label.setText(message)
+
+    def _on_generation_step_completed(self, step_index):
+        """Handle step completion from the generation worker."""
+        self.progress_widget.advance_to_step(step_index)
+
+    def _on_generation_step_progress(self, progress):
+        """Handle progress within a step from the generation worker."""
+        self.progress_widget.set_step_progress(progress)
+
+    def _on_generation_completed(self, success, result, error_message):
+        """Handle generation completion from the generation worker."""
+        if success:
+            self.progress_widget.complete_process()
+            self.status_label.setText("Generation successful: Content ready to view in project tree.")
+
+            # Display the generated content in the content viewer
+            self._show_generated_content(self.generation_worker.workflow_type)
+
+            # Update the editor tabs and project tree
+            self.editor_tabs.refresh()
+            self.project_tree.refresh()
+
+            # Show a message to guide the user
+            QMessageBox.information(
+                self,
+                "Generation Complete",
+                "Content generation complete! You can now:\n\n"
+                "1. Click on items in the project tree to view them\n"
+                "2. Use the Export button to save the content to a file\n"
+                "3. Use the Refine button to improve the generated content"
+            )
+        else:
+            self.progress_widget.fail_process(f"Failed to generate content: {error_message}")
+            self.status_label.setText(f"Generation failed: {error_message}")
+            QMessageBox.warning(self, "Warning", f"Could not generate content: {error_message}")
+
+        # Clean up
+        if hasattr(self, 'generation_worker'):
+            self.generation_worker.deleteLater()
+            self.generation_worker = None
+
     def _update_generation_progress(self):
-        """Update the progress visualization during generation."""
-        if not hasattr(self, 'generation_step_progress'):
-            return
-            
-        # Update progress within current step
-        self.generation_step_progress += 5
-        if self.generation_step_progress >= 100:
-            # Move to next step
-            current_step = self.progress_widget.current_step_index
-            if current_step < len(self.progress_widget.steps) - 1:
-                self.progress_widget.advance_to_step(current_step + 1)
-                self.generation_step_progress = 0
-            else:
-                self.generation_step_progress = 100
-                
-        self.progress_widget.set_step_progress(self.generation_step_progress)
-        
+        """This method is no longer used with the worker-based approach."""
+        pass
+
     def _on_cancel_generation(self):
         """Handle cancellation of generation process."""
-        # In a real implementation, you would need to actually cancel
-        # the generation process in the controller
-        self.status_label.setText("Generation cancelled by user")
-        
-        # Stop the progress timer
-        if hasattr(self, 'generation_timer'):
-            self.generation_timer.stop()
+        if hasattr(self, 'generation_worker') and self.generation_worker is not None:
+            self.status_label.setText("Cancelling generation...")
+            self.generation_worker.cancel()
+        else:
+            self.status_label.setText("No active generation to cancel")
 
     def _show_generated_content(self, scope):
-        """Display the generated content in the results panel."""
+        """Display the generated content in the content viewer."""
         if not self.controller.current_project:
             return
 
-        # Make the results panel visible
-        self.results_panel.setVisible(True)
+        # Make the content viewer visible
+        self.content_viewer.setVisible(True)
 
-        # Get the content based on scope
-        if scope == "complete_book":
-            content = self._format_book_for_display(self.controller.current_project)
-        elif scope == "chapter":
-            content = self._format_chapter_for_display(self.controller.current_project)
-        else:
-            # For other scopes, just display what we have
-            content = f"Generated {scope} content"
+        # Set the project content
+        self.content_viewer.set_project(self.controller.current_project)
 
-        # Set the content
-        print(f"Displaying generated content: {len(content)} characters")
-        self.results_text.setMarkdown(content)
-
-        # Resize the splitter to show both editor and results
+        # Resize the splitter to show both editor and content viewer
         total_height = self.main_splitter.height()
         self.main_splitter.setSizes([int(total_height * 0.6), int(total_height * 0.4)])
 
@@ -875,51 +850,71 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Warning", "No project is currently open.")
             return
 
-        # Show the refinement dialog
-        dialog = RefineContentDialog(self)
-        if dialog.exec():
-            # Get the refinement prompt
-            prompt = dialog.get_refinement_prompt()
-            target = dialog.get_target()
-            aspect = dialog.get_aspect()
+        try:
+            # Get the current content
+            current_content = self.controller.current_project.generated_content
 
-            # Update status bar
-            self.status_label.setText(f"Refining {aspect.lower()} of {target.lower()}... Please wait.")
-            QApplication.processEvents()  # Update the UI
+            if not current_content:
+                QMessageBox.warning(self, "Warning", "No content has been generated yet.")
+                return
 
-            try:
+            # Show the refine content dialog
+            dialog = RefineContentDialog(self)
+
+            if dialog.exec():
+                # Get the refinement parameters
+                refinement_prompt = dialog.get_refinement_prompt()
+                target = dialog.get_target()
+                aspect = dialog.get_aspect()
+
+                # Update status
+                self.status_label.setText(f"Refining {aspect} of {target}...")
+
                 # Get generation parameters from properties panel
                 provider = self.properties_panel.provider_combo.currentText().lower()
                 model = self.properties_panel.model_combo.currentText()
                 temperature = self.properties_panel.temperature_spinbox.value()
 
-                # Additional parameters for refinement
+                # Additional parameters
                 params = {
                     "provider": provider,
                     "model": model,
                     "temperature": temperature,
-                    "refinement_prompt": prompt,
-                    "target": target.lower(),
-                    "aspect": aspect.lower()
+                    "refinement_prompt": refinement_prompt,
+                    "target": target,
+                    "aspect": aspect
                 }
 
-                # Call refine on the controller
-                success = self.controller.refine_content(**params)
+                # Show progress widget
+                self.progress_widget.set_steps([
+                    "Analyzing content",
+                    "Applying refinements",
+                    "Finalizing content"
+                ])
+                self.progress_widget.setVisible(True)
+                self.progress_widget.start_process()
 
-                if success:
-                    self.status_label.setText(f"Refinement successful: Content updated. Click Export to save.")
+                # Import the GenerationWorker
+                from writegui.utils.generation_worker import GenerationWorker
 
-                    # Update the display with refined content
-                    self._show_generated_content("complete_book")  # Default to showing the full book
+                # Create and start the generation worker
+                self.generation_worker = GenerationWorker(self.controller, "refine", params)
 
-                    # Update the editor tabs
-                    self.editor_tabs.refresh()
-                else:
-                    self.status_label.setText("Refinement failed.")
-                    QMessageBox.warning(self, "Warning", "Could not refine the content.")
-            except Exception as e:
-                self.status_label.setText(f"Refinement error: {str(e)}")
-                QMessageBox.critical(self, "Error", f"Error refining content: {e}")
+                # Connect signals
+                self.generation_worker.progress_updated.connect(self._on_generation_progress_updated)
+                self.generation_worker.step_completed.connect(self._on_generation_step_completed)
+                self.generation_worker.step_progress.connect(self._on_generation_step_progress)
+                self.generation_worker.generation_completed.connect(self._on_generation_completed)
+
+                # Start the worker
+                self.generation_worker.start()
+
+                # Update UI to show generation is in progress
+                self.status_label.setText(f"Refining content... (non-blocking)")
+
+        except Exception as e:
+            self.status_label.setText(f"Refinement error: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error refining content: {e}")
 
     def _on_refresh(self):
         """Handle the refresh action."""
@@ -936,15 +931,15 @@ class MainWindow(QMainWindow):
     def _show_theme_dialog(self):
         """Show the theme settings dialog."""
         from ..dialogs.theme_dialog import ThemeDialog
-        
+
         # Get current theme from settings
         current_theme = self.settings_manager.get("theme", "dark")
-        
+
         # Create and show the dialog
         dialog = ThemeDialog(self, current_theme)
         dialog.theme_selected.connect(lambda theme: self._change_theme(theme, dialog.is_remember_checked()))
         dialog.exec()
-        
+
     def _change_theme(self, theme, save_setting=True):
         """Change the application theme."""
         # Apply the light green theme from StylesheetManager
@@ -970,20 +965,20 @@ class MainWindow(QMainWindow):
     def _show_settings_dialog(self):
         """Show the settings dialog."""
         from ..dialogs.settings_dialog import SettingsDialog
-        
+
         dialog = SettingsDialog(self)
         dialog.settings_changed.connect(self._on_settings_changed)
         dialog.exec()
-        
+
     def _on_settings_changed(self):
         """Handle settings changes."""
         # Update theme if it has changed
         current_theme = self.settings_manager.get("theme", "dark")
         self.theme_manager.apply_theme(self, current_theme)
-        
+
         # Update status bar
         self.status_label.setText("Settings updated")
-        
+
         # TODO: Apply other settings changes as needed
 
     def closeEvent(self, event):
@@ -1010,3 +1005,22 @@ class MainWindow(QMainWindow):
 
         # Accept the event to close the window
         event.accept()
+
+    def _on_content_selected(self, content_type, content):
+        """Handle content selection from the project tree."""
+        self.status_label.setText(f"Opening {content_type} content...")
+
+        # Open the content in a tab
+        self.editor_tabs.open_content_tab(content_type, content)
+
+        # Update status
+        if content_type == 'chapter' and isinstance(content, dict):
+            title = content.get('title', 'Chapter')
+            self.status_label.setText(f"Opened chapter: {title}")
+        elif content_type == 'character' and isinstance(content, dict):
+            name = content.get('name', 'Character')
+            self.status_label.setText(f"Opened character: {name}")
+        elif content_type == 'outline':
+            self.status_label.setText("Opened outline")
+        else:
+            self.status_label.setText(f"Opened {content_type} content")

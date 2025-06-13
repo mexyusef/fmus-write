@@ -4,7 +4,7 @@ Dialog for creating a new project.
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QComboBox, QPushButton, QFormLayout, QDialogButtonBox,
-    QGroupBox, QRadioButton, QTextEdit
+    QGroupBox, QRadioButton, QTextEdit, QMessageBox, QApplication
 )
 from PyQt6.QtCore import Qt, QSize
 
@@ -19,7 +19,7 @@ class NewProjectDialog(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle("Create New Project")
-        self.resize(600, 500)
+        self.resize(600, 600)  # Increased height for new field
 
         self.controller = controller
 
@@ -39,7 +39,8 @@ class NewProjectDialog(QDialog):
         self.title_edit.setPlaceholderText("Enter project title")
         details_layout.addRow("Title:", self.title_edit)
 
-        # Genre field
+        # Genre field with generate button
+        genre_layout = QHBoxLayout()
         self.genre_combo = QComboBox()
         self.genre_combo.setEditable(True)
         self.genre_combo.setPlaceholderText("Select or enter genre")
@@ -54,7 +55,15 @@ class NewProjectDialog(QDialog):
                 "Horror", "Western", "Young Adult", "Children's"
             ])
 
-        details_layout.addRow("Genre:", self.genre_combo)
+        # Add generate button
+        self.generate_button = QPushButton("Generate Idea")
+        self.generate_button.setToolTip("Generate random title and description based on selected genre")
+        self.generate_button.clicked.connect(self._on_generate_idea)
+
+        # Add widgets to layout
+        genre_layout.addWidget(self.genre_combo)
+        genre_layout.addWidget(self.generate_button)
+        details_layout.addRow("Genre:", genre_layout)
 
         # Genre description (shows when a genre is selected)
         self.genre_description = QTextEdit()
@@ -73,6 +82,28 @@ class NewProjectDialog(QDialog):
         # Set the details layout
         details_group.setLayout(details_layout)
         layout.addWidget(details_group)
+
+        # Story Description group
+        story_group = QGroupBox("Story Description")
+        story_layout = QVBoxLayout()
+
+        # Description label
+        description_label = QLabel(
+            "Describe your story idea here. Include key elements like setting, main characters, "
+            "or plot points you want to include. The AI will use this to guide the generation."
+        )
+        description_label.setWordWrap(True)
+        story_layout.addWidget(description_label)
+
+        # Story description text area
+        self.story_description_edit = QTextEdit()
+        self.story_description_edit.setPlaceholderText("Enter your story idea...")
+        self.story_description_edit.setMinimumHeight(100)
+        story_layout.addWidget(self.story_description_edit)
+
+        # Set the story layout
+        story_group.setLayout(story_layout)
+        layout.addWidget(story_group)
 
         # Structure group
         structure_group = QGroupBox("Project Structure")
@@ -207,6 +238,10 @@ class NewProjectDialog(QDialog):
         """Get the author name."""
         return self.author_edit.text().strip()
 
+    def get_story_description(self) -> str:
+        """Get the story description."""
+        return self.story_description_edit.toPlainText().strip()
+
     def get_structure_type(self) -> str:
         """Get the selected structure type."""
         return self.structure_combo.currentText().strip()
@@ -224,3 +259,130 @@ class NewProjectDialog(QDialog):
 
         # Call the parent accept method
         super().accept()
+
+    def _on_generate_idea(self):
+        """Generate a random title and description based on the selected genre."""
+        # Get the selected genre
+        genre = self.genre_combo.currentText()
+
+        # Check if a genre is selected
+        if not genre:
+            QMessageBox.warning(
+                self,
+                "Genre Required",
+                "Please select a genre before generating an idea."
+            )
+            return
+
+        # Show generating status
+        self.generate_button.setEnabled(False)
+        self.generate_button.setText("Generating...")
+        QApplication.processEvents()  # Update UI
+
+        try:
+            # Create prompt for the LLM
+            prompt = f"""Generate a creative and original story idea for a {genre} story.
+
+            Please provide:
+            1. A catchy and unique title (maximum 10 words)
+            2. A compelling story description (150-250 words) that includes:
+               - The main character(s)
+               - The setting
+               - The central conflict or plot
+               - Any unique elements or hooks
+
+            Format your response exactly like this:
+            TITLE: [Your title here]
+            DESCRIPTION: [Your description here]
+
+            Be creative and original. Avoid clichés and common tropes in the {genre} genre.
+            """
+
+            # Use the controller to query the LLM
+            if self.controller:
+                # Get current LLM settings
+                provider = self.controller.settings_manager.get("llm_provider", "gemini")
+                model = self.controller.settings_manager.get("model", "gemini-1.5-flash")
+                temperature = self.controller.settings_manager.get("temperature", 0.7)
+
+                # Query the LLM
+                result = self.controller.query_llm(
+                    prompt=prompt,
+                    provider=provider,
+                    model=model,
+                    temperature=temperature
+                )
+
+                # Parse the result
+                if result:
+                    # Extract title and description
+                    title = ""
+                    description = ""
+
+                    # Parse the response
+                    lines = result.split('\n')
+                    for i, line in enumerate(lines):
+                        if line.startswith("TITLE:"):
+                            title = line[6:].strip()
+                        elif line.startswith("DESCRIPTION:"):
+                            # Get the description (could be multiple lines)
+                            description_lines = []
+                            j = i + 1
+                            while j < len(lines) and not lines[j].startswith("TITLE:"):
+                                description_lines.append(lines[j])
+                                j += 1
+                            description = "\n".join(description_lines).strip()
+
+                    # If we couldn't parse properly, try a simpler approach
+                    if not title or not description:
+                        parts = result.split("DESCRIPTION:")
+                        if len(parts) >= 2:
+                            if "TITLE:" in parts[0]:
+                                title = parts[0].replace("TITLE:", "").strip()
+                            description = parts[1].strip()
+
+                    # Update the UI with the generated content
+                    if title:
+                        self.title_edit.setText(title)
+                    if description:
+                        self.story_description_edit.setText(description)
+                    else:
+                        QMessageBox.warning(
+                            self,
+                            "Parsing Error",
+                            "Generated content could not be parsed correctly. Please try again."
+                        )
+                else:
+                    # Show a more detailed error message
+                    QMessageBox.warning(
+                        self,
+                        "Generation Failed",
+                        f"Failed to generate story idea using {provider} provider.\n\n"
+                        f"Possible reasons:\n"
+                        f"- API key for {provider} may be missing or invalid\n"
+                        f"- Selected model ({model}) may not be available\n"
+                        f"- Network connection issues\n\n"
+                        f"You can change the LLM provider in Settings."
+                    )
+            else:
+                QMessageBox.warning(self, "Error", "Controller not available for idea generation.")
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+
+            # Log the full error
+            if self.controller and hasattr(self.controller, 'logger'):
+                self.controller.logger.error(f"Error generating idea: {str(e)}")
+                self.controller.logger.error(error_details)
+
+            # Show a user-friendly error message
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Error generating idea: {str(e)}\n\n"
+                f"Please check your network connection and LLM provider settings."
+            )
+        finally:
+            # Reset button state
+            self.generate_button.setEnabled(True)
+            self.generate_button.setText("Generate Idea")

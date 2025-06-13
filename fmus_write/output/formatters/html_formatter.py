@@ -9,7 +9,7 @@ class HTMLFormatter(OutputFormatter):
 
     def __init__(self):
         super().__init__("html")
-        
+
     def format(self, data: Dict[str, Any]) -> str:
         """Format the data as HTML.
 
@@ -45,7 +45,7 @@ class HTMLFormatter(OutputFormatter):
             --accent-color: #e74c3c;
             --light-bg: #f5f5f5;
         }}
-        
+
         body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
@@ -55,39 +55,39 @@ class HTMLFormatter(OutputFormatter):
             margin: 0 auto;
             padding: 20px;
         }}
-        
+
         h1, h2, h3, h4, h5, h6 {{
             color: var(--secondary-color);
             margin-top: 1.5em;
             margin-bottom: 0.5em;
         }}
-        
+
         h1 {{
             font-size: 2.5em;
             text-align: center;
             border-bottom: 2px solid var(--primary-color);
             padding-bottom: 10px;
         }}
-        
+
         h2 {{
             font-size: 1.8em;
             border-bottom: 1px solid var(--primary-color);
             padding-bottom: 5px;
         }}
-        
+
         .author {{
             text-align: center;
             font-style: italic;
             margin-bottom: 2em;
         }}
-        
+
         .metadata {{
             background-color: var(--light-bg);
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 2em;
         }}
-        
+
         .summary {{
             background-color: var(--light-bg);
             padding: 15px;
@@ -95,41 +95,41 @@ class HTMLFormatter(OutputFormatter):
             margin-bottom: 2em;
             font-style: italic;
         }}
-        
+
         .chapter {{
             margin-bottom: 3em;
         }}
-        
+
         .chapter-content {{
             text-align: justify;
         }}
-        
+
         .toc {{
             background-color: var(--light-bg);
             padding: 15px;
             border-radius: 5px;
             margin: 2em 0;
         }}
-        
+
         .toc ul {{
             list-style-type: none;
             padding-left: 20px;
         }}
-        
+
         .toc a {{
             text-decoration: none;
             color: var(--primary-color);
         }}
-        
+
         .toc a:hover {{
             text-decoration: underline;
         }}
-        
+
         @media (max-width: 600px) {{
             body {{
                 padding: 10px;
             }}
-            
+
             h1 {{
                 font-size: 2em;
             }}
@@ -154,15 +154,15 @@ class HTMLFormatter(OutputFormatter):
         html_content += '    <div class="toc">\n'
         html_content += '        <h2>Table of Contents</h2>\n'
         html_content += '        <ul>\n'
-        
+
         if summary:
             html_content += '            <li><a href="#summary">Summary</a></li>\n'
-            
+
         if chapters:
             for i, chapter in enumerate(chapters):
                 chapter_title = chapter.get("title", f"Chapter {i+1}")
                 html_content += f'            <li><a href="#chapter-{i+1}">{chapter_title}</a></li>\n'
-                
+
         html_content += '        </ul>\n'
         html_content += '    </div>\n'
 
@@ -178,14 +178,14 @@ class HTMLFormatter(OutputFormatter):
             for i, chapter in enumerate(chapters):
                 chapter_title = chapter.get("title", f"Chapter {i+1}")
                 chapter_content = chapter.get("content", "")
-                
+
                 # Format chapter content with paragraphs
                 formatted_content = ""
                 paragraphs = chapter_content.split("\n\n")
                 for para in paragraphs:
                     if para.strip():
                         formatted_content += f"        <p>{para}</p>\n"
-                
+
                 html_content += f'    <div class="chapter">\n'
                 html_content += f'        <h2 id="chapter-{i+1}">{chapter_title}</h2>\n'
                 html_content += f'        <div class="chapter-content">\n{formatted_content}        </div>\n'
@@ -217,4 +217,4 @@ class HTMLFormatter(OutputFormatter):
             f.write(html_content)
 
         self.logger.info(f"Wrote HTML content to {output_path}")
-        return output_path 
+        return output_path

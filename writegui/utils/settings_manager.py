@@ -12,17 +12,17 @@ logger = logging.getLogger(__name__)
 
 class SettingsManager:
     """Manager for application settings and user preferences."""
-    
+
     def __init__(self):
         """Initialize the settings manager."""
         self.settings = self._get_default_settings()
         self.config_dir = self.get_config_dir()
         self.settings_file = self.config_dir / "settings.json"
         self.recent_projects_file = self.config_dir / "recent_projects.json"
-        
+
         # Load settings
         self._load_settings()
-        
+
     def _get_default_settings(self) -> Dict[str, Any]:
         """Get the default settings."""
         return {
@@ -52,18 +52,18 @@ class SettingsManager:
                 "default_themes": []
             }
         }
-        
+
     def get_config_dir(self) -> Path:
         """Get the configuration directory."""
         if os.name == "nt":  # Windows
             config_dir = Path(os.environ.get("APPDATA", "")) / "WriterGUI"
         else:  # macOS, Linux, etc.
             config_dir = Path.home() / ".config" / "WriterGUI"
-            
+
         # Create directory if it doesn't exist
         config_dir.mkdir(parents=True, exist_ok=True)
         return config_dir
-        
+
     def _load_settings(self):
         """Load settings from the configuration file."""
         if self.settings_file.exists():
@@ -75,7 +75,7 @@ class SettingsManager:
                     logger.info(f"Settings loaded from {self.settings_file}")
             except Exception as e:
                 logger.error(f"Error loading settings: {e}")
-                
+
     def _update_nested_dict(self, d: Dict, u: Dict):
         """Update a nested dictionary with another dictionary."""
         for k, v in u.items():
@@ -83,7 +83,7 @@ class SettingsManager:
                 self._update_nested_dict(d[k], v)
             else:
                 d[k] = v
-                
+
     def save_settings(self):
         """Save settings to the configuration file."""
         try:
@@ -92,7 +92,7 @@ class SettingsManager:
             logger.info(f"Settings saved to {self.settings_file}")
         except Exception as e:
             logger.error(f"Error saving settings: {e}")
-            
+
     def get(self, key: str, default: Any = None) -> Any:
         """Get a setting value by key."""
         # Support nested keys with dot notation
@@ -106,7 +106,7 @@ class SettingsManager:
                     return default
             return value
         return self.settings.get(key, default)
-        
+
     def set(self, key: str, value: Any):
         """Set a setting value by key."""
         # Support nested keys with dot notation
@@ -120,10 +120,10 @@ class SettingsManager:
             target[parts[-1]] = value
         else:
             self.settings[key] = value
-            
+
         # Save settings after each change
         self.save_settings()
-        
+
     def has_setting(self, key: str) -> bool:
         """Check if a setting exists."""
         # Support nested keys with dot notation
@@ -136,11 +136,11 @@ class SettingsManager:
                 value = value[part]
             return True
         return key in self.settings
-        
+
     def get_all(self) -> Dict[str, Any]:
         """Get all settings."""
         return self.settings
-        
+
     def get_recent_projects(self) -> List[Dict[str, str]]:
         """Get the list of recent projects."""
         if self.recent_projects_file.exists():
@@ -150,41 +150,41 @@ class SettingsManager:
             except Exception as e:
                 logger.error(f"Error loading recent projects: {e}")
         return []
-        
+
     def add_recent_project(self, project_path: str, project_name: str = None):
         """Add a project to the recent projects list."""
         path = Path(project_path)
-        
+
         # Use the file name as project name if not provided
         if not project_name:
             project_name = path.stem
-            
+
         # Create project info
         project_info = {
             "path": str(path),
             "name": project_name,
             "last_opened": str(path.stat().st_mtime)
         }
-        
+
         # Get current list
         recent_projects = self.get_recent_projects()
-        
+
         # Remove if already in list
         recent_projects = [p for p in recent_projects if p.get("path") != str(path)]
-        
+
         # Add to beginning
         recent_projects.insert(0, project_info)
-        
+
         # Keep only the most recent 10
         recent_projects = recent_projects[:10]
-        
+
         # Save
         self._save_recent_projects(recent_projects)
-        
+
     def clear_recent_projects(self):
         """Clear the recent projects list."""
         self._save_recent_projects([])
-        
+
     def _save_recent_projects(self, projects: List[Dict[str, str]]):
         """Save the recent projects list."""
         try:
@@ -193,16 +193,16 @@ class SettingsManager:
             logger.info(f"Recent projects saved to {self.recent_projects_file}")
         except Exception as e:
             logger.error(f"Error saving recent projects: {e}")
-            
+
     def get_window_state(self) -> Dict[str, Any]:
         """Get the saved window state."""
         return self.settings.get("window", {})
-        
+
     def save_window_state(self, window_state: Dict[str, Any]):
         """Save the window state."""
         self.settings["window"] = window_state
         self.save_settings()
-        
+
     def get_editor_settings(self) -> Dict[str, Any]:
         """Get editor settings."""
-        return self.settings.get("editor", {}) 
+        return self.settings.get("editor", {})

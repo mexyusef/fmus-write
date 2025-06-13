@@ -57,6 +57,7 @@ class CompleteBookWorkflow(Workflow):
                 - provider: LLM provider to use (default: gemini)
                 - structure_type: Type of story structure (e.g., novel, novella)
                 - template: Type of story template (e.g., Three-Act, Hero's Journey)
+                - story_description: User's description of the story idea
                 - settings: Additional settings for generation
 
         Returns:
@@ -70,6 +71,7 @@ class CompleteBookWorkflow(Workflow):
         provider = input_data.get('provider', 'gemini')
         structure_type = input_data.get('structure_type', 'novel')
         template = input_data.get('template', 'Three-Act Structure')
+        story_description = input_data.get('story_description', '')
 
         # Create story structure object
         story = StoryStructure(
@@ -81,7 +83,7 @@ class CompleteBookWorkflow(Workflow):
         # Use the actual LLM to generate content
         try:
             self.logger.info(f"Generating outline using {provider} provider")
-            outline_prompt = self._create_outline_prompt(title, genre, structure_type, template)
+            outline_prompt = self._create_outline_prompt(title, genre, structure_type, template, story_description)
             outline_messages = [LLMMessage(role="user", content=outline_prompt)]
             outline_json = await self.generate_with_llm(provider, outline_messages)
             print(f">> Hasil dari LLM [outline]: outline_json: {outline_json}")
@@ -96,7 +98,7 @@ class CompleteBookWorkflow(Workflow):
                 outline = {"title": title, "genre": genre, "premise": story.premise, "sections": []}
 
             self.logger.info(f"Generating characters using {provider} provider")
-            character_prompt = self._create_character_prompt(title, genre, outline)
+            character_prompt = self._create_character_prompt(title, genre, outline, story_description)
             character_messages = [LLMMessage(role="user", content=character_prompt)]
             character_json = await self.generate_with_llm(provider, character_messages)
             print(f">> Hasil dari LLM [characters]: character_json: {character_json}")
@@ -121,7 +123,7 @@ class CompleteBookWorkflow(Workflow):
             chapters = []
             for i in range(1, total_chapters + 1):
                 self.logger.info(f"Generating chapter {i}/{total_chapters} using {provider} provider")
-                chapter_prompt = self._create_chapter_prompt(title, genre, outline, characters, i, total_chapters)
+                chapter_prompt = self._create_chapter_prompt(title, genre, outline, characters, i, total_chapters, story_description)
                 chapter_messages = [LLMMessage(role="user", content=chapter_prompt)]
                 chapter_content = await self.generate_with_llm(provider, chapter_messages)
                 print(f">> Hasil dari LLM [chapter {i}]: chapter_content: {chapter_content}")
@@ -158,11 +160,22 @@ class CompleteBookWorkflow(Workflow):
         self.logger.info(f"Completed book generation for: {title}")
         return output_data
 
-    def _create_outline_prompt(self, title: str, genre: str, structure_type: str, template: str) -> str:
+    def _create_outline_prompt(self, title: str, genre: str, structure_type: str, template: str, story_description: str = "") -> str:
         """Create a prompt for generating a book outline."""
+        # Add the story description if provided
+        story_guidance = ""
+        if story_description:
+            story_guidance = f"""
+            Use the following story description as a guide:
+            {story_description}
+
+            Make sure your outline aligns with this description while still being creative and engaging.
+            """
+
         prompt = f"""
         I need you to create a detailed outline for a {structure_type} titled "{title}" in the {genre} genre.
         Use the {template} story structure as a framework.
+        {story_guidance}
 
         Please format your response as a JSON object with the following structure:
         {{
@@ -189,16 +202,27 @@ class CompleteBookWorkflow(Workflow):
         """
         return prompt
 
-    def _create_character_prompt(self, title: str, genre: str, outline: Dict[str, Any]) -> str:
+    def _create_character_prompt(self, title: str, genre: str, outline: Dict[str, Any], story_description: str = "") -> str:
         """Create a prompt for generating characters."""
         # Convert outline to a string representation for the prompt
         outline_str = json.dumps(outline, indent=2)
+
+        # Add the story description if provided
+        story_guidance = ""
+        if story_description:
+            story_guidance = f"""
+            Also consider this story description:
+            {story_description}
+
+            Ensure the characters align with this vision while still being well-developed and interesting.
+            """
 
         prompt = f"""
         Based on the following outline for a {genre} story titled "{title}", create a set of detailed characters.
 
         Outline:
         {outline_str}
+        {story_guidance}
 
         Please format your response as a JSON object with the following structure:
         {{
@@ -221,11 +245,22 @@ class CompleteBookWorkflow(Workflow):
         return prompt
 
     def _create_chapter_prompt(self, title: str, genre: str, outline: Dict[str, Any],
-                              characters: Dict[str, Any], chapter_num: int, total_chapters: int) -> str:
+                              characters: Dict[str, Any], chapter_num: int, total_chapters: int,
+                              story_description: str = "") -> str:
         """Create a prompt for generating a chapter."""
         # Convert data to string representations for the prompt
         outline_str = json.dumps(outline, indent=2)
         characters_str = json.dumps(characters, indent=2)
+
+        # Add the story description if provided
+        story_guidance = ""
+        if story_description:
+            story_guidance = f"""
+            Additionally, keep in mind this story description from the author:
+            {story_description}
+
+            Make sure your chapter aligns with this vision.
+            """
 
         prompt = f"""
         I need you to write Chapter {chapter_num} of {total_chapters} for a {genre} story titled "{title}".
@@ -235,6 +270,7 @@ class CompleteBookWorkflow(Workflow):
 
         And here are the characters:
         {characters_str}
+        {story_guidance}
 
         This is chapter {chapter_num} out of {total_chapters}, so consider where we are in the overall story arc.
 
